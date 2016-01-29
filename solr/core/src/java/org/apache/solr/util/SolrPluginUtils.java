@@ -42,6 +42,7 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.util.LucenePluginUtils;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrException;
@@ -1044,31 +1045,8 @@ public class SolrPluginUtils {
 
   public static void invokeSetters(Object bean, NamedList initArgs) {
     if (initArgs == null) return;
-    Class clazz = bean.getClass();
-    Method[] methods = clazz.getMethods();
     Iterator<Map.Entry<String, Object>> iterator = initArgs.iterator();
-    while (iterator.hasNext()) {
-      Map.Entry<String, Object> entry = iterator.next();
-      String key = entry.getKey();
-      String setterName = "set" + String.valueOf(Character.toUpperCase(key.charAt(0))) + key.substring(1);
-      Method method = null;
-      try {
-        for (Method m : methods) {
-          if (m.getName().equals(setterName) && m.getParameterTypes().length == 1) {
-            method = m;
-            break;
-          }
-        }
-        if (method == null) {
-          throw new RuntimeException("no setter corrresponding to '" + key + "' in " + clazz.getName());
-        }
-        Class pClazz = method.getParameterTypes()[0];
-        Object val = entry.getValue();
-        method.invoke(bean, val);
-      } catch (InvocationTargetException | IllegalAccessException e1) {
-        throw new RuntimeException("Error invoking setter " + setterName + " on class : " + clazz.getName(), e1);
-      }
-    }
+    LucenePluginUtils.invokeSetters(bean, iterator);
   }
 
 
