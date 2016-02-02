@@ -1,6 +1,3 @@
-package org.apache.lucene.index;
-
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -17,22 +14,24 @@ package org.apache.lucene.index;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.solr.index;
+
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.TieredMergePolicy;
+import org.apache.solr.core.SolrResourceLoader;
 
 /**
- * A factory for {@link MergePolicy} objects.
- *
- * @lucene.experimental
+ * A {@link MergePolicyFactory} for {@link TieredMergePolicy} objects.
  */
-public abstract class MergePolicyFactory {
+public class TieredMergePolicyFactory extends SimpleMergePolicyFactory {
 
-  protected final MergePolicyFactoryHelper helper;
-  protected final MergePolicyFactoryArgs args;
-
-  protected MergePolicyFactory(MergePolicyFactoryHelper helper, MergePolicyFactoryArgs args) {
-    this.helper = helper;
-    this.args = args;
+  public TieredMergePolicyFactory(SolrResourceLoader resourceLoader, MergePolicyFactoryArgs args) {
+    super(resourceLoader, args);
   }
-
-  public abstract MergePolicy getMergePolicy();
+  
+  @Override
+  protected MergePolicy getMergePolicyInstance() {
+    return new TieredMergePolicy();
+  }
 
 }

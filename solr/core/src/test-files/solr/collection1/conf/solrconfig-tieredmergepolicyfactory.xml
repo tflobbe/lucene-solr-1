@@ -23,7 +23,6 @@
   <schemaFactory class="ClassicIndexSchemaFactory"/>
 
   <indexConfig>
-    <mergeFactor>7</mergeFactor>
     <mergePolicyFactory class="org.apache.lucene.index.TieredMergePolicyFactory">
       <int name="maxMergeAtOnceExplicit">19</int>
       <int name="segmentsPerTier">9</int>

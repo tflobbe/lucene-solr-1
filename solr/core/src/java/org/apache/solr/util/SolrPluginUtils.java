@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,7 +41,6 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.util.LucenePluginUtils;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrException;
@@ -53,7 +51,6 @@ import org.apache.solr.common.util.NamedList;
 import org.apache.solr.common.util.SimpleOrderedMap;
 import org.apache.solr.common.util.StrUtils;
 import org.apache.solr.core.RequestParams;
-import org.apache.solr.core.SolrCore;
 import org.apache.solr.handler.component.HighlightComponent;
 import org.apache.solr.handler.component.ResponseBuilder;
 import org.apache.solr.handler.component.ShardDoc;
@@ -1042,14 +1039,28 @@ public class SolrPluginUtils {
     return list;
   }
 
-
-  public static void invokeSetters(Object bean, NamedList initArgs) {
+  public static void invokeSetters(Object bean, Iterable<Map.Entry<String,Object>> initArgs) {
     if (initArgs == null) return;
-    Iterator<Map.Entry<String, Object>> iterator = initArgs.iterator();
-    LucenePluginUtils.invokeSetters(bean, iterator);
+    for (Map.Entry<String,Object> entry : initArgs) {
+      final String key = entry.getKey();
+      final String setterName = "set" + String.valueOf(Character.toUpperCase(key.charAt(0))) + key.substring(1);
+      try {
+        final Method method = findMethod(bean, setterName, key);
+        method.invoke(bean, entry.getValue());
+      } catch (final InvocationTargetException | IllegalAccessException e1) {
+        throw new RuntimeException("Error invoking setter " + setterName + " on class : " + bean.getClass().getName(), e1);
+      }
+    }
   }
 
-
+  private static Method findMethod(Object bean, String setterName, String key) {
+    for (Method m : bean.getClass().getMethods()) {
+      if (m.getName().equals(setterName) && m.getParameterTypes().length == 1) {
+        return m;
+      }
+    }
+    throw new RuntimeException("No setter corrresponding to '" + key + "' in " + bean.getClass().getName());
+  }
 
    /**
    * Given the integer purpose of a request generates a readable value corresponding 

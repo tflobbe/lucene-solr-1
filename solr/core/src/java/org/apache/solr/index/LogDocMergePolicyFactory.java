@@ -1,5 +1,3 @@
-package org.apache.lucene.index;
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -16,30 +14,24 @@ package org.apache.lucene.index;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.solr.index;
+
+import org.apache.lucene.index.LogDocMergePolicy;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.solr.core.SolrResourceLoader;
 
 /**
- * A {@link MergePolicyFactory} for simple {@link MergePolicy} objects.
- *
- * @lucene.experimental
+ * A {@link MergePolicyFactory} for {@link LogDocMergePolicy} objects.
  */
-public abstract class SimpleMergePolicyFactory extends MergePolicyFactory {
+public class LogDocMergePolicyFactory extends SimpleMergePolicyFactory {
 
-  private final String mergePolicyClassName;
-
-  protected SimpleMergePolicyFactory(MergePolicyFactoryHelper helper, MergePolicyFactoryArgs args, String mergePolicyClassName) {
-    super(helper, args);
-    this.mergePolicyClassName = mergePolicyClassName;
+  public LogDocMergePolicyFactory(SolrResourceLoader resourceLoader, MergePolicyFactoryArgs args) {
+    super(resourceLoader, args);
   }
 
   @Override
-  public MergePolicy getMergePolicy() {
-    final MergePolicy mp = helper.newInstance(
-        mergePolicyClassName,
-        MergePolicy.class,
-        MergePolicyFactoryHelper.NO_CLASSES,
-        MergePolicyFactoryHelper.NO_OBJECTS);
-    args.invokeSetters(mp);
-    return mp;
+  protected MergePolicy getMergePolicyInstance() {
+    return new LogDocMergePolicy();
   }
-
+  
 }

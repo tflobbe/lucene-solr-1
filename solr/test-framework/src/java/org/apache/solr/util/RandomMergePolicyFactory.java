@@ -1,5 +1,3 @@
-package org.apache.lucene.index;
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -16,16 +14,22 @@ package org.apache.lucene.index;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.solr.util;
 
-/**
- * A {@link MergePolicyFactory} for {@link UpgradeIndexMergePolicy} objects.
- *
- * @lucene.experimental
- */
-public class UpgradeIndexMergePolicyFactory extends WrapperMergePolicyFactory {
+import org.apache.lucene.index.MergePolicy;
+import org.apache.solr.index.MergePolicyFactory;
+import org.apache.solr.index.MergePolicyFactoryArgs;
 
-  public UpgradeIndexMergePolicyFactory(MergePolicyFactoryHelper helper, MergePolicyFactoryArgs args) {
-    super(helper, args, UpgradeIndexMergePolicy.class.getName(), "base");
+/** A {@link MergePolicyFactory} for {@link RandomMergePolicy}. */
+public final class RandomMergePolicyFactory extends MergePolicyFactory {
+
+  public RandomMergePolicyFactory() {
+    super(null, new MergePolicyFactoryArgs());
+  }
+  
+  @Override
+  public MergePolicy getMergePolicy() {
+    return new RandomMergePolicy();
   }
 
 }

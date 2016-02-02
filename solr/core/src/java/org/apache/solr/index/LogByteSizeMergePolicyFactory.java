@@ -1,5 +1,3 @@
-package org.apache.lucene.index;
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -16,16 +14,24 @@ package org.apache.lucene.index;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.solr.index;
+
+import org.apache.lucene.index.LogByteSizeMergePolicy;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.solr.core.SolrResourceLoader;
 
 /**
- * A {@link MergePolicyFactory} for {@link LogDocMergePolicy} objects.
- *
- * @lucene.experimental
+ * A {@link MergePolicyFactory} for {@link LogByteSizeMergePolicy} objects.
  */
-public class LogDocMergePolicyFactory extends SimpleMergePolicyFactory {
+public class LogByteSizeMergePolicyFactory extends SimpleMergePolicyFactory {
 
-  public LogDocMergePolicyFactory(MergePolicyFactoryHelper helper, MergePolicyFactoryArgs args) {
-    super(helper, args, LogDocMergePolicy.class.getName());
+  public LogByteSizeMergePolicyFactory(SolrResourceLoader resourceLoader, MergePolicyFactoryArgs args) {
+    super(resourceLoader, args);
   }
 
+  @Override
+  protected MergePolicy getMergePolicyInstance() {
+    return new LogByteSizeMergePolicy();
+  }
+  
 }

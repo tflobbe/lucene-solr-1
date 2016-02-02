@@ -1,12 +1,3 @@
-package org.apache.lucene.index;
-
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
-
-import org.apache.lucene.util.LucenePluginUtils;
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -23,18 +14,27 @@ import org.apache.lucene.util.LucenePluginUtils;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.solr.index;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+
+import org.apache.lucene.index.MergePolicy;
+import org.apache.solr.util.SolrPluginUtils;
 
 public class MergePolicyFactoryArgs {
 
-  private final Map<String, Object> args = new HashMap<>();
+  private final Map<String,Object> args = new HashMap<>();
 
   public MergePolicyFactoryArgs() {
+    this(Collections.<String,Object> emptyMap().entrySet());
   }
 
-  public MergePolicyFactoryArgs(Iterator<Map.Entry<String, Object>> iterator) {
-    while (iterator.hasNext()) {
-      final Map.Entry<String, Object> entry = iterator.next();
-      args.put(entry.getKey(), entry.getValue());
+  public MergePolicyFactoryArgs(Iterable<Map.Entry<String,Object>> args) {
+    for (final Map.Entry<String,Object> arg : args) {
+      this.args.put(arg.getKey(), arg.getValue());
     }
   }
 
@@ -50,15 +50,12 @@ public class MergePolicyFactoryArgs {
     return args.get(key);
   }
 
-  public Set<String> keySet() {
+  public Set<String> keys() {
     return args.keySet();
   }
 
   public void invokeSetters(MergePolicy policy) {
-    for (String key : args.keySet()) {
-      final Object val = args.get(key);
-      LucenePluginUtils.invokeSetter(policy, key, val);
-    }
+    SolrPluginUtils.invokeSetters(policy, args.entrySet());
   }
 
 }

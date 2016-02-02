@@ -44,7 +44,6 @@ public class SolrIndexConfigTest extends SolrTestCaseJ4 {
   private static final String solrConfigFileNameWarmer = "solrconfig-warmer.xml";
   private static final String solrConfigFileNameTieredMergePolicy = "solrconfig-tieredmergepolicy.xml";
   private static final String solrConfigFileNameTieredMergePolicyFactory = "solrconfig-tieredmergepolicyfactory.xml";
-
   private static final String schemaFileName = "schema.xml";
 
   @BeforeClass
@@ -72,9 +71,7 @@ public class SolrIndexConfigTest extends SolrTestCaseJ4 {
   public void testTieredMPSolrIndexConfigCreation() throws Exception {
     String solrConfigFileName = random().nextBoolean() ? solrConfigFileNameTieredMergePolicy : solrConfigFileNameTieredMergePolicyFactory;
     SolrConfig solrConfig = new SolrConfig(instanceDir, solrConfigFileName, null);
-    SolrIndexConfig solrIndexConfig = new SolrIndexConfig(solrConfig, null,
-        null);
-    assertNotNull(solrIndexConfig);
+    SolrIndexConfig solrIndexConfig = new SolrIndexConfig(solrConfig, null, null);
     IndexSchema indexSchema = IndexSchemaFactory.buildIndexSchema(schemaFileName, solrConfig);
     
     h.getCore().setLatestSchema(indexSchema);

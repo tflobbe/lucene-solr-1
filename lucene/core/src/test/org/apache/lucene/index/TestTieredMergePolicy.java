@@ -29,24 +29,6 @@ public class TestTieredMergePolicy extends BaseMergePolicyTestCase {
     return newTieredMergePolicy();
   }
 
-  final private boolean changeMaxMergeAtOnce = random().nextBoolean();
-  final private boolean changeReclaimDeletesWeight = random().nextBoolean();
-
-  @Override
-  MergePolicyFactoryArgs mergePolicyFactoryArgs() {
-    final MergePolicyFactoryArgs args = new MergePolicyFactoryArgs();
-    if (changeMaxMergeAtOnce) args.put("maxMergeAtOnce", new Integer(42));
-    if (changeReclaimDeletesWeight) args.put("reclaimDeletesWeight", new Double(4.2d));
-    return args;
-  }
-
-  protected void checkFactoryCreatedMergePolicy(MergePolicy mergePolicy) {
-    assertTrue(mergePolicy instanceof TieredMergePolicy);
-    final TieredMergePolicy mp = (TieredMergePolicy)mergePolicy;
-    if (changeMaxMergeAtOnce) assertEquals(42, mp.getMaxMergeAtOnce());
-    if (changeReclaimDeletesWeight) assertEquals(4.2d, mp.getReclaimDeletesWeight(), 0.0);
-  }
-
   public void testForceMergeDeletes() throws Exception {
     Directory dir = newDirectory();
     IndexWriterConfig conf = newIndexWriterConfig(new MockAnalyzer(random()));

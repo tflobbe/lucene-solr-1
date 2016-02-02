@@ -23,16 +23,4 @@ public class TestUpgradeIndexMergePolicy extends BaseMergePolicyTestCase {
     return new UpgradeIndexMergePolicy(newMergePolicy(random()));
   }
 
-  @Override
-  MergePolicyFactoryArgs mergePolicyFactoryArgs() {
-    final MergePolicyFactoryArgs args = new MergePolicyFactoryArgs();
-    // TODO
-    return args;
-  }
-
-  protected void checkFactoryCreatedMergePolicy(MergePolicy mergePolicy) {
-    assertTrue(mergePolicy instanceof UpgradeIndexMergePolicy);
-    // TODO
-  }
-
 }

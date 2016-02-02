@@ -23,24 +23,6 @@ public class TestLogMergePolicy extends BaseMergePolicyTestCase {
     return newLogMergePolicy(random());
   }
 
-  final private boolean changeMergeFactor = random().nextBoolean();
-  final private boolean changeNoCFSRatio = random().nextBoolean();
-
-  @Override
-  MergePolicyFactoryArgs mergePolicyFactoryArgs() {
-    final MergePolicyFactoryArgs args = new MergePolicyFactoryArgs();
-    if (changeMergeFactor) args.put("mergeFactor", new Integer(42));
-    if (changeNoCFSRatio) args.put("noCFSRatio", new Double(0.42d));
-    return args;
-  }
-
-  protected void checkFactoryCreatedMergePolicy(MergePolicy mergePolicy) {
-    assertTrue(mergePolicy instanceof LogMergePolicy);
-    final LogMergePolicy mp = (LogMergePolicy)mergePolicy;
-    if (changeMergeFactor) assertEquals(42, mp.getMergeFactor());
-    if (changeNoCFSRatio) assertEquals(0.42d, mp.getNoCFSRatio(), 0.0);
-  }
-
   public void testDefaultForcedMergeMB() {
     LogByteSizeMergePolicy mp = new LogByteSizeMergePolicy();
     assertTrue(mp.getMaxMergeMBForForcedMerge() > 0.0);

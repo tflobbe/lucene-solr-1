@@ -35,6 +35,10 @@ import org.apache.solr.core.MapSerializable;
 import org.apache.solr.core.PluginInfo;
 import org.apache.solr.core.SolrConfig;
 import org.apache.solr.core.SolrCore;
+import org.apache.solr.core.SolrResourceLoader;
+import org.apache.solr.index.MergePolicyFactory;
+import org.apache.solr.index.MergePolicyFactoryArgs;
+import org.apache.solr.index.TieredMergePolicyFactory;
 import org.apache.solr.schema.IndexSchema;
 import org.apache.solr.util.SolrPluginUtils;
 import org.slf4j.Logger;
@@ -75,7 +79,6 @@ public class SolrIndexConfig implements MapSerializable {
   /**
    * Internal constructor for setting defaults based on Lucene Version
    */
-  @SuppressWarnings("deprecation")
   private SolrIndexConfig(SolrConfig solrConfig) {
     luceneVersion = solrConfig.luceneMatchVersion;
     effectiveUseCompoundFileSetting = false;
@@ -99,7 +102,6 @@ public class SolrIndexConfig implements MapSerializable {
    * @param prefix the XPath prefix for which section to parse (mandatory)
    * @param def a SolrIndexConfig instance to pick default values from (optional)
    */
-  @SuppressWarnings("deprecation")
   public SolrIndexConfig(SolrConfig solrConfig, String prefix, SolrIndexConfig def)  {
     if (prefix == null) {
       prefix = "indexConfig";
@@ -147,11 +149,11 @@ public class SolrIndexConfig implements MapSerializable {
     }
 
     assertWarnOrFail("Beginning with Solr 5.5, <mergePolicy> is deprecated, use <mergePolicyFactory> instead.",
-        (mergePolicyInfo != null), true);
-    assertWarnOrFail("<maxMergeDocs> ignored when using <mergePolicyFactory>, use ??? instead.",
-        (mergePolicyFactoryInfo != null && maxMergeDocs != def.maxMergeDocs), true);
-    assertWarnOrFail("<mergeFactor> ignored when using <mergePolicyFactory>, use ??? instead.",
-        (mergePolicyFactoryInfo != null && mergeFactor != def.mergeFactor), true);
+        (mergePolicyInfo == null), false);
+    assertWarnOrFail("Beginning with Solr 5.5, <maxMergeDocs> is deprecated, configure it on the relevant <mergePolicyFactory> instead.",
+        (mergePolicyFactoryInfo != null && maxMergeDocs == def.maxMergeDocs), false);
+    assertWarnOrFail("Beginning with Solr 5.5, <mergeFactor> is deprecated, configure it on the relevant <mergePolicyFactory> instead.",
+        (mergePolicyFactoryInfo != null && mergeFactor == def.mergeFactor), false);
 
     String val = solrConfig.get(prefix + "/termIndexInterval", null);
     if (val != null) {
@@ -246,6 +248,7 @@ public class SolrIndexConfig implements MapSerializable {
    * Builds a MergePolicy using the configured MergePolicyFactory
    * or if no factory is configured uses the configured mergePolicy PluginInfo.
    */
+  @SuppressWarnings("unchecked")
   private MergePolicy buildMergePolicy(final IndexSchema schema) {
     if (mergePolicyInfo != null) {
       return buildMergePolicyFromInfo(schema);
@@ -259,22 +262,16 @@ public class SolrIndexConfig implements MapSerializable {
       mpfArgs = new MergePolicyFactoryArgs();
     } else {
       mpfClassName =  mergePolicyFactoryInfo.className;
-      mpfArgs = new MergePolicyFactoryArgs(mergePolicyFactoryInfo.initArgs.iterator());
+      mpfArgs = new MergePolicyFactoryArgs(mergePolicyFactoryInfo.initArgs);
     }
 
-    final MergePolicyFactoryHelper mpfHelper = new MergePolicyFactoryHelper() {
-      @Override
-      public <T> T newInstance(String cName, Class<T> expectedType, Class[] params, Object[] args) {
-        return schema.getResourceLoader().newInstance(
-            cName, expectedType, NO_SUB_PACKAGES, params, args);
-      }
-    };
-
-    final MergePolicyFactory mpf = mpfHelper.newInstance(
+    final SolrResourceLoader resourceLoader = schema.getResourceLoader();
+    final MergePolicyFactory mpf = resourceLoader.newInstance(
         mpfClassName,
         MergePolicyFactory.class,
-        new Class[] { MergePolicyFactoryHelper.class, MergePolicyFactoryArgs.class },
-        new Object[] { mpfHelper, mpfArgs });
+        NO_SUB_PACKAGES,
+        new Class[] { SolrResourceLoader.class, MergePolicyFactoryArgs.class },
+        new Object[] { resourceLoader, mpfArgs });
 
     return mpf.getMergePolicy();
   }
