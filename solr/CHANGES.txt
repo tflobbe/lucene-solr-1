@@ -142,6 +142,8 @@ New Features
 
 * SOLR-8550: Add asynchronous DaemonStreams to the Streaming API (Joel Bernstein)
 
+* SOLR-8285: Ensure the /export handler works with NULL field values (Joel Bernstein)
+
 Bug Fixes
 ----------------------
 * SOLR-8386: Add field option in the new admin UI schema page loads up even when no schemaFactory has been
@@ -171,6 +173,9 @@ Optimizations
   matching documents is small (or 0) this enhancement prevents considering terms which have a 0
   count. Also includes change to move to the next non-zero term value when selecting a segment
   position. (Keith Laban, Steve Bower, Dennis Gove)
+
+* SOLR-8532: Optimize GraphQuery when maxDepth is set by not collecting edges at the maxDepth level.
+  (Kevin Watters via yonik)
 
 Other Changes
 ----------------------
@@ -429,6 +434,8 @@ Bug Fixes
 * SOLR-8605: Regular expression queries starting with escaped forward slash caused
   an exception. (Scott Blum, yonik)
 
+* SOLR-8607: The Schema API refuses to add new fields that match existing dynamic fields.
+  (Jan Høydahl, Steve Rowe)
   
 Optimizations
 ----------------------
@@ -577,6 +584,11 @@ Other Changes
 * SOLR-8595: Use BinaryRequestWriter by default in HttpSolrClient and ConcurrentUpdateSolrClient. (shalin)
 
 * SOLR-8597: add default, no-op QParserPlugin.init(NamedList) method (Christine Poerschke)
+
+* SOLR-7968: Make QueryComponent more extensible. (Markus Jelsma via David Smiley)
+
+* SOLR-8600: add & use ReRankQParserPlugin parameter [default] constants,
+  changed ReRankQuery.toString to use StringBuilder. (Christine Poerschke)
 
 ==================  5.4.1 ==================
 
