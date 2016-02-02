@@ -24,6 +24,9 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Modifier;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -66,4 +69,98 @@ public abstract class BaseMergePolicyTestCase extends LuceneTestCase {
     dir.close();
   }
   
+  Class<?>[] mergePolicyFactoryConstructorParameterTypes() {
+    return new Class[] {
+        MergePolicyFactoryHelper.class,
+        MergePolicyFactoryArgs.class
+    };
+  }
+
+  Object[] mergePolicyFactoryConstructorParameters() {
+    return new Object[] {
+        mergePolicyFactoryHelper(),
+        mergePolicyFactoryArgs()
+    };
+  }
+
+  protected abstract void checkFactoryCreatedMergePolicy(MergePolicy mergePolicy);
+
+  MergePolicyFactoryHelper mergePolicyFactoryHelper() {
+    return new MergePolicyFactoryHelper() {
+      public <T> T newInstance(String cName, Class<T> expectedType, Class[] params, Object[] args) {
+        Class<? extends T> clazz;
+        try {
+          clazz = Class.forName(cName).asSubclass(expectedType);
+        } catch (ClassNotFoundException e) {
+          return null;
+        }
+        Constructor<? extends T> constructor = null;
+        try {
+          constructor = clazz.getConstructor(params);
+        } catch (NoSuchMethodException|SecurityException e) {
+          return null;
+        }
+        T obj = null;
+        try {
+          obj = constructor.newInstance(args);
+        } catch (IllegalAccessException|IllegalArgumentException|InstantiationException|InvocationTargetException e) {
+          return null;
+        }
+        return obj;
+      }
+    };
+  }
+
+  MergePolicyFactoryArgs mergePolicyFactoryArgs() {
+    return new MergePolicyFactoryArgs();
+  }
+
+  public void testMergePolicyFactory() throws IOException {
+    final MergePolicy mp = mergePolicy();
+    Class<?> mpClass = mp.getClass();
+    do {
+      implTestMergePolicyFactory(mpClass);
+      mpClass = mpClass.getSuperclass();
+    } while (MergePolicy.class.isAssignableFrom(mpClass));
+    implTestMergePolicyFactory(MergePolicy.class);
+  }
+
+  private void implTestMergePolicyFactory(Class<?> mpClass) throws IOException {
+    if (Modifier.isAbstract(mpClass.getModifiers())) return;
+    final String mpClassName = mpClass.getName();
+    final String mpfClassName = mpClassName+"Factory";
+    // find factory class
+    Class<?> mpfClass = null;
+    try {
+      mpfClass = Class.forName(mpfClassName);
+    } catch (ClassNotFoundException e) {
+      fail(mpfClassName+" factory for "+mpClassName+" not found: "+mpClass);
+    }
+    final int mpfClassModifiers = mpfClass.getModifiers();
+    assertTrue(mpfClassName+" factory for "+mpClassName+" is not public: "+mpfClass,
+        Modifier.isPublic(mpfClassModifiers));
+    // find factory class's constructor
+    Constructor<?> constructor = null;
+    final Class<?>[] mpfConstructorParameterTypes = mergePolicyFactoryConstructorParameterTypes();
+    try {
+      constructor = mpfClass.getConstructor(mpfConstructorParameterTypes);
+    } catch (NoSuchMethodException|SecurityException e) {
+      fail(mpfClassName+" constructor("+mpfConstructorParameterTypes+") not found - "+e);
+    }
+    // construct a factory instance
+    MergePolicyFactory mpf = null;
+    final Object[] mpfConstructorParameters = mergePolicyFactoryConstructorParameters();
+    try {
+      final Object obj = constructor.newInstance(mpfConstructorParameters);
+      assertTrue(obj+" is not a MergePolicyFactory", obj instanceof MergePolicyFactory);
+      mpf = (MergePolicyFactory)obj;
+    } catch (IllegalAccessException|IllegalArgumentException|InstantiationException|InvocationTargetException e) {
+      fail(mpfClassName+" constructor.newInstance("+mpfConstructorParameterTypes+") failed - "+e);
+    }
+    // create a merge policy using the factory instance
+    final MergePolicy mp = mpf.getMergePolicy();
+    assertTrue(mp+" cannot be assigned to "+mpClass, mpClass.isAssignableFrom(mp.getClass()));
+    checkFactoryCreatedMergePolicy(mp);
+  }
+
 }

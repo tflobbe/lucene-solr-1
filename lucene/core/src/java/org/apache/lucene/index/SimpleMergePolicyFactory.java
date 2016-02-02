@@ -36,7 +36,6 @@ public abstract class SimpleMergePolicyFactory extends MergePolicyFactory {
     final MergePolicy mp = helper.newInstance(
         mergePolicyClassName,
         MergePolicy.class,
-        MergePolicyFactoryHelper.NO_SUB_PACKAGES,
         MergePolicyFactoryHelper.NO_CLASSES,
         MergePolicyFactoryHelper.NO_OBJECTS);
     args.invokeSetters(mp);

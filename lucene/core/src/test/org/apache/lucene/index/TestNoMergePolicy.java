@@ -31,6 +31,21 @@ public class TestNoMergePolicy extends BaseMergePolicyTestCase {
     return NoMergePolicy.INSTANCE;
   }
 
+  final private boolean changeNoCFSRatio = random().nextBoolean();
+
+  @Override
+  MergePolicyFactoryArgs mergePolicyFactoryArgs() {
+    final MergePolicyFactoryArgs args = new MergePolicyFactoryArgs();
+    if (changeNoCFSRatio) args.put("noCFSRatio", new Double(0.42d));
+    return args;
+  }
+
+  protected void checkFactoryCreatedMergePolicy(MergePolicy mergePolicy) {
+    assertTrue(mergePolicy instanceof NoMergePolicy);
+    final NoMergePolicy mp = (NoMergePolicy)mergePolicy;
+    if (changeNoCFSRatio) assertEquals(0.42d, mp.getNoCFSRatio(), 0.0);
+  }
+
   @Test
   public void testNoMergePolicy() throws Exception {
     MergePolicy mp = mergePolicy();

@@ -240,6 +240,8 @@ public class SolrIndexConfig implements MapSerializable {
     return iwc;
   }
 
+  private static final String NO_SUB_PACKAGES[] = new String[0];
+
   /**
    * Builds a MergePolicy using the configured MergePolicyFactory
    * or if no factory is configured uses the configured mergePolicy PluginInfo.
@@ -262,16 +264,15 @@ public class SolrIndexConfig implements MapSerializable {
 
     final MergePolicyFactoryHelper mpfHelper = new MergePolicyFactoryHelper() {
       @Override
-      public <T> T newInstance(String cName, Class<T> expectedType, String [] subPackages, Class[] params, Object[] args) {
+      public <T> T newInstance(String cName, Class<T> expectedType, Class[] params, Object[] args) {
         return schema.getResourceLoader().newInstance(
-            cName, expectedType, subPackages, params, args);
+            cName, expectedType, NO_SUB_PACKAGES, params, args);
       }
     };
 
     final MergePolicyFactory mpf = mpfHelper.newInstance(
         mpfClassName,
         MergePolicyFactory.class,
-        new String[0],
         new Class[] { MergePolicyFactoryHelper.class, MergePolicyFactoryArgs.class },
         new Object[] { mpfHelper, mpfArgs });
 

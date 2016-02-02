@@ -63,7 +63,6 @@ public abstract class WrapperMergePolicyFactory extends MergePolicyFactory {
     final MergePolicy wrapperMP = (helper == null ? null : helper.newInstance(
         wrapperMergePolicyClassName,
         MergePolicy.class,
-        MergePolicyFactoryHelper.NO_SUB_PACKAGES,
         new Class[] { MergePolicy.class },
         new Object[] { wrappedMP }));
     args.invokeSetters(wrapperMP);
@@ -74,7 +73,6 @@ public abstract class WrapperMergePolicyFactory extends MergePolicyFactory {
     final MergePolicyFactory mpf = helper.newInstance(
         wrappedMergePolicyArgs.mergePolicyFactoryClassName,
         MergePolicyFactory.class,
-        null,
         new Class[] { MergePolicyFactoryArgs.class },
         new Object[] { wrappedMergePolicyArgs });
     return mpf.getMergePolicy();

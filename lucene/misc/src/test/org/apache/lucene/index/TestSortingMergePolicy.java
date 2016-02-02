@@ -82,6 +82,23 @@ public class TestSortingMergePolicy extends BaseMergePolicyTestCase {
     return newSortingMergePolicy(sort);
   }
 
+  @Override
+  MergePolicyFactoryArgs mergePolicyFactoryArgs() {
+    final MergePolicyFactoryArgs args = new MergePolicyFactoryArgs();
+    // SOLR-5730 will add stuff here.
+    return args;
+  }
+
+  @Override
+  public void testMergePolicyFactory() throws IOException {
+    // This is a no-op until SOLR-5730 is in place.
+  }
+
+  protected void checkFactoryCreatedMergePolicy(MergePolicy mergePolicy) {
+    assertTrue(mergePolicy instanceof SortingMergePolicy);
+    // SOLR-5730 will add stuff here.
+  }
+
   public static SortingMergePolicy newSortingMergePolicy(Sort sort) {
     // usually create a MP with a low merge factor so that many merges happen
     MergePolicy mp;

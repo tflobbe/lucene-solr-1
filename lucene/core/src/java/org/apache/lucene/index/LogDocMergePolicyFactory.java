@@ -17,10 +17,15 @@ package org.apache.lucene.index;
  * limitations under the License.
  */
 
-public abstract class MergePolicyFactoryHelper {
+/**
+ * A {@link MergePolicyFactory} for {@link LogDocMergePolicy} objects.
+ *
+ * @lucene.experimental
+ */
+public class LogDocMergePolicyFactory extends SimpleMergePolicyFactory {
 
-  public static final Class[] NO_CLASSES = new Class[0];
-  public static final Object[] NO_OBJECTS = new Object[0];
+  public LogDocMergePolicyFactory(MergePolicyFactoryHelper helper, MergePolicyFactoryArgs args) {
+    super(helper, args, LogDocMergePolicy.class.getName());
+  }
 
-  public abstract <T> T newInstance(String cName, Class<T> expectedType, Class[] params, Object[] args);
 }
