@@ -17,24 +17,31 @@
 package org.apache.solr.index;
 
 import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.UpgradeIndexMergePolicy;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.solr.core.SolrResourceLoader;
 
 /**
- * A {@link MergePolicyFactory} for {@link UpgradeIndexMergePolicy} objects.
+ * A {@link MergePolicyFactory} for the default {@link MergePolicy}.
  */
-public class UpgradeIndexMergePolicyFactory extends WrapperMergePolicyFactory {
+public class DefaultMergePolicyFactory extends MergePolicyFactory {
 
-  public UpgradeIndexMergePolicyFactory(SolrResourceLoader resourceLoader, MergePolicyFactoryArgs args) {
+  @Deprecated // Remove when SolrIndexConfig no longer uses it.
+  public static final String defaultMergePolicyClassName = TieredMergePolicy.class.getName();
+
+  public DefaultMergePolicyFactory(SolrResourceLoader resourceLoader, MergePolicyFactoryArgs args) {
     super(resourceLoader, args);
+    if (!args.keys().isEmpty()) {
+      throw new IllegalArgumentException("Arguments were "+args+" but "+getClass().getSimpleName()+" takes no arguments.");
+    }
+  }
+
+  public DefaultMergePolicyFactory() {
+    super(null, null);
   }
 
   @Override
-  public MergePolicy getMergePolicy() {
-    final MergePolicy wrappedMP = getWrappedMergePolicy();
-    final MergePolicy mp = new UpgradeIndexMergePolicy(wrappedMP);
-    args.invokeSetters(mp);
-    return mp;
+  public final MergePolicy getMergePolicy() {
+    return new TieredMergePolicy();
   }
-  
+
 }

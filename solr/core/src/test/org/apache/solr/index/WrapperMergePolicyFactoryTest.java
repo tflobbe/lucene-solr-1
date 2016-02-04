@@ -45,30 +45,35 @@ public class WrapperMergePolicyFactoryTest extends SolrTestCaseJ4 {
   }
 
   public void testProperlyInitializesWrappedMergePolicy() {
+    final TieredMergePolicy defaultTMP = new TieredMergePolicy();
+    final int testMaxMergeAtOnce = defaultTMP.getMaxMergeAtOnce() * 2;
+    final double testMaxMergedSegmentMB = defaultTMP.getMaxMergedSegmentMB() * 10;
+
     final MergePolicyFactoryArgs args = new MergePolicyFactoryArgs();
     args.put(WrapperMergePolicyFactory.WRAPPED_PREFIX, "test");
     args.put("test.class", TieredMergePolicyFactory.class.getName());
-    args.put("test.maxMergeAtOnce", 2);
-    args.put("test.maxMergedSegmentMB", 1.0);
-    MergePolicyFactory mpf = new WrapperMergePolicyFactory(resourceLoader, args) {
+    args.put("test.maxMergeAtOnce", testMaxMergeAtOnce);
+    args.put("test.maxMergedSegmentMB", testMaxMergedSegmentMB);
+    MergePolicyFactory mpf = new DefaultingWrapperMergePolicyFactory(resourceLoader, args) {
       @Override
       protected MergePolicy getDefaultWrappedMergePolicy() {
         throw new IllegalStateException("Should not have reached here!");
       }
-
-      @Override
-      public MergePolicy getMergePolicy() {
-        return getWrappedMergePolicy();
-      }
     };
     final MergePolicy mp = mpf.getMergePolicy();
     assertSame(mp.getClass(), TieredMergePolicy.class);
+    final TieredMergePolicy tmp = (TieredMergePolicy)mp;
+    assertEquals("maxMergeAtOnce", testMaxMergeAtOnce, tmp.getMaxMergeAtOnce());
+    assertEquals("maxMergedSegmentMB", testMaxMergedSegmentMB, tmp.getMaxMergedSegmentMB(), 0.0d);
   }
   
   private static class DefaultingWrapperMergePolicyFactory extends WrapperMergePolicyFactory {
 
     DefaultingWrapperMergePolicyFactory(SolrResourceLoader resourceLoader, MergePolicyFactoryArgs wrapperArgs) {
       super(resourceLoader, wrapperArgs);
+      if (!args.keys().isEmpty()) {
+        throw new IllegalArgumentException("All arguments should have been claimed by the wrapped policy but some ("+args.keys()+") remain.");
+      }
     }
 
     @Override

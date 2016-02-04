@@ -23,7 +23,7 @@
   <schemaFactory class="ClassicIndexSchemaFactory"/>
 
   <indexConfig>
-    <mergePolicyFactory class="org.apache.lucene.index.TieredMergePolicyFactory">
+    <mergePolicyFactory class="org.apache.solr.index.TieredMergePolicyFactory">
       <int name="maxMergeAtOnceExplicit">19</int>
       <int name="segmentsPerTier">9</int>
       <double name="noCFSRatio">0.1</double>

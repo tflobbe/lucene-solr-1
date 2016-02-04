@@ -110,7 +110,11 @@ public class SolrIndexConfigTest extends SolrTestCaseJ4 {
     SolrConfig solrConfig = new SolrConfig(instanceDir, solrConfigFileName, null);
     SolrIndexConfig solrIndexConfig = new SolrIndexConfig(solrConfig, null, null);
     assertNotNull(solrIndexConfig);
-    assertNotNull(solrIndexConfig.mergePolicyInfo);
+    if (solrConfigFileName.equals(solrConfigFileNameTieredMergePolicyFactory)) {
+      assertNotNull(solrIndexConfig.mergePolicyFactoryInfo);
+    } else {
+      assertNotNull(solrIndexConfig.mergePolicyInfo);
+    }
     if (solrConfigFileName.equals(solrConfigFileNameWarmer)) {
       assertNotNull(solrIndexConfig.mergedSegmentWarmerInfo);
     } else {

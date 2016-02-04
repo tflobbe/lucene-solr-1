@@ -42,7 +42,10 @@ public abstract class WrapperMergePolicyFactory extends MergePolicyFactory {
    * Returns the default wrapped {@link MergePolicy}. This is called if the factory settings do not explicitly specify
    * the wrapped policy.
    */
-  protected abstract MergePolicy getDefaultWrappedMergePolicy();
+  protected MergePolicy getDefaultWrappedMergePolicy() {
+    final MergePolicyFactory mpf = new DefaultMergePolicyFactory();
+    return mpf.getMergePolicy();
+  }
 
   /** Returns an instance of the wrapped {@link MergePolicy} after it has been configured with all set parameters. */
   protected final MergePolicy getWrappedMergePolicy() {
@@ -72,6 +75,8 @@ public abstract class WrapperMergePolicyFactory extends MergePolicyFactory {
     final String wrappedPolicyPrefix = (String) args.get(WRAPPED_PREFIX);
     if (wrappedPolicyPrefix == null) {
       return null;
+    } else {
+      args.remove(WRAPPED_PREFIX);
     }
 
     final String baseArgsPrefix = wrappedPolicyPrefix + '.';

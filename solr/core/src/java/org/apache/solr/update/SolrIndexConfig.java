@@ -36,9 +36,9 @@ import org.apache.solr.core.PluginInfo;
 import org.apache.solr.core.SolrConfig;
 import org.apache.solr.core.SolrCore;
 import org.apache.solr.core.SolrResourceLoader;
+import org.apache.solr.index.DefaultMergePolicyFactory;
 import org.apache.solr.index.MergePolicyFactory;
 import org.apache.solr.index.MergePolicyFactoryArgs;
-import org.apache.solr.index.TieredMergePolicyFactory;
 import org.apache.solr.schema.IndexSchema;
 import org.apache.solr.util.SolrPluginUtils;
 import org.slf4j.Logger;
@@ -91,8 +91,8 @@ public class SolrIndexConfig implements MapSerializable {
     mergePolicyInfo = null;
     mergePolicyFactoryInfo = null;
     mergeSchedulerInfo = null;
-    defaultMergePolicyClassName = TieredMergePolicy.class.getName();
-    defaultMergePolicyFactoryClassName = TieredMergePolicyFactory.class.getName();
+    defaultMergePolicyClassName = DefaultMergePolicyFactory.defaultMergePolicyClassName;
+    defaultMergePolicyFactoryClassName = DefaultMergePolicyFactory.class.getName();
     mergedSegmentWarmerInfo = null;
   }
   
