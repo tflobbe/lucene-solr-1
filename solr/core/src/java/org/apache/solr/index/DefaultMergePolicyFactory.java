@@ -25,9 +25,6 @@ import org.apache.solr.core.SolrResourceLoader;
  */
 public class DefaultMergePolicyFactory extends MergePolicyFactory {
 
-  @Deprecated // Remove when SolrIndexConfig no longer uses it.
-  public static final String defaultMergePolicyClassName = TieredMergePolicy.class.getName();
-
   public DefaultMergePolicyFactory(SolrResourceLoader resourceLoader, MergePolicyFactoryArgs args) {
     super(resourceLoader, args);
     if (!args.keys().isEmpty()) {
