@@ -31,7 +31,11 @@ public class LogByteSizeMergePolicyFactory extends SimpleMergePolicyFactory {
 
   @Override
   protected MergePolicy getMergePolicyInstance() {
-    return new LogByteSizeMergePolicy();
+    if (className == null) {
+      return new LogByteSizeMergePolicy();
+    } else {
+      return resourceLoader.newInstance(className, LogByteSizeMergePolicy.class);
+    }
   }
   
 }

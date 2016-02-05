@@ -81,8 +81,10 @@ public class WrapperMergePolicyFactoryTest extends SolrTestCaseJ4 {
       return NoMergePolicy.INSTANCE;
     }
 
+
+    /** Returns an instance of the {@link MergePolicy} without setting all its parameters. */
     @Override
-    public MergePolicy getMergePolicy() {
+    protected MergePolicy getMergePolicyInstance() {
       return getWrappedMergePolicy();
     }
 

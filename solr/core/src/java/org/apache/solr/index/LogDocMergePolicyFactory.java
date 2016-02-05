@@ -31,7 +31,11 @@ public class LogDocMergePolicyFactory extends SimpleMergePolicyFactory {
 
   @Override
   protected MergePolicy getMergePolicyInstance() {
-    return new LogDocMergePolicy();
+    if (className == null) {
+      return new LogDocMergePolicy();
+    } else {
+      return resourceLoader.newInstance(className, LogDocMergePolicy.class);
+    }
   }
   
 }

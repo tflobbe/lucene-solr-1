@@ -20,16 +20,27 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.solr.core.SolrResourceLoader;
 
 /**
- * A {@link MergePolicyFactory} for simple {@link MergePolicy} objects. Implementations need only create the policy
- * {@link #getMergePolicyInstance() instance} and this class will then configure it with all set properties.
+ * A {@link MergePolicyFactory} for simple {@link MergePolicy} objects. Implementations can override only
+ * {@link #getMergePolicyInstance()} and this class will then configure it with all set properties.
  */
-public abstract class SimpleMergePolicyFactory extends MergePolicyFactory {
+public class SimpleMergePolicyFactory extends MergePolicyFactory {
+
+  static protected final String CLASS = "class";
+  final protected String className;
 
   protected SimpleMergePolicyFactory(SolrResourceLoader resourceLoader, MergePolicyFactoryArgs args) {
     super(resourceLoader, args);
+    className = (String) args.remove(CLASS);
   }
 
-  protected abstract MergePolicy getMergePolicyInstance();
+  /** Returns an instance of the {@link MergePolicy} without setting all its parameters. */
+  protected MergePolicy getMergePolicyInstance() {
+    if (className == null) {
+      throw new IllegalArgumentException(getClass().getSimpleName()+" requires a '"+CLASS+"' argument.");
+    } else {
+      return resourceLoader.newInstance(className, MergePolicy.class);
+    }
+  }
 
   @Override
   public final MergePolicy getMergePolicy() {
