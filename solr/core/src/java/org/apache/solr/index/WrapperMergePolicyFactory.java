@@ -80,12 +80,9 @@ public abstract class WrapperMergePolicyFactory extends MergePolicyFactory {
     final String baseArgsPrefix = wrappedPolicyPrefix + '.';
     final int baseArgsPrefixLength = baseArgsPrefix.length();
     final MergePolicyFactoryArgs wrappedArgs = new MergePolicyFactoryArgs();
-    // Must use an iterator since we remove items from the map during iteration.
-    for (Iterator<String> iter = args.keys().iterator(); iter.hasNext();) {
-      String key = iter.next();
+    for (String key : args.keys()) {
       if (key.startsWith(baseArgsPrefix)) {
-        wrappedArgs.put(key.substring(baseArgsPrefixLength), args.get(key));
-        iter.remove();
+        wrappedArgs.add(key.substring(baseArgsPrefixLength), args.remove(key));
       }
     }
     return wrappedArgs;

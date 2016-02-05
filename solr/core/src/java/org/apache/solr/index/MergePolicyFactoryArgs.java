@@ -17,29 +17,29 @@
 package org.apache.solr.index;
 
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
 import org.apache.lucene.index.MergePolicy;
+import org.apache.solr.common.util.NamedList;
 import org.apache.solr.util.SolrPluginUtils;
 
 public class MergePolicyFactoryArgs {
 
-  private final Map<String,Object> args = new HashMap<>();
+  private final NamedList<Object> args;
 
   public MergePolicyFactoryArgs() {
-    this(Collections.<String,Object> emptyMap().entrySet());
+    this(new NamedList<Object>());
   }
 
-  public MergePolicyFactoryArgs(Iterable<Map.Entry<String,Object>> args) {
-    for (final Map.Entry<String,Object> arg : args) {
-      this.args.put(arg.getKey(), arg.getValue());
-    }
+  public MergePolicyFactoryArgs(NamedList<Object> args) {
+    this.args = args;
   }
 
-  public void put(String key, Object val) {
-    args.put(key, val);
+  public void add(String key, Object val) {
+    args.add(key, val);
   }
 
   public Object remove(String key) {
@@ -51,11 +51,20 @@ public class MergePolicyFactoryArgs {
   }
 
   public Set<String> keys() {
-    return args.keySet();
+    final Set<String> keys = new HashSet<>(args.size(), 1.0f);
+    for (Iterator<Map.Entry<String,Object>> iter = args.iterator(); iter.hasNext();) {
+      keys.add(iter.next().getKey());
+    }
+    return Collections.unmodifiableSet(keys);
   }
 
   public void invokeSetters(MergePolicy policy) {
-    SolrPluginUtils.invokeSetters(policy, args.entrySet());
+    SolrPluginUtils.invokeSetters(policy, args);
+  }
+
+  @Override
+  public String toString() {
+    return args.toString();
   }
 
 }
