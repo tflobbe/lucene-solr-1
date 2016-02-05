@@ -262,7 +262,7 @@ public class SolrIndexConfig implements MapSerializable {
       mpfArgs = new MergePolicyFactoryArgs();
     } else {
       mpfClassName =  mergePolicyFactoryInfo.className;
-      mpfArgs = new MergePolicyFactoryArgs(mergePolicyFactoryInfo.initArgs);
+      mpfArgs = new MergePolicyFactoryArgs(mergePolicyFactoryInfo.initArgs.clone()); // clone so that MergePolicyFactoryArgs may own and modify the args passed to it
     }
 
     final SolrResourceLoader resourceLoader = schema.getResourceLoader();
