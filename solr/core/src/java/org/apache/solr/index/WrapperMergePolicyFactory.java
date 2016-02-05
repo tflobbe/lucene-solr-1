@@ -72,11 +72,9 @@ public abstract class WrapperMergePolicyFactory extends MergePolicyFactory {
    * args from this instance's args.
    */
   private MergePolicyFactoryArgs filterWrappedMergePolicyFactoryArgs() {
-    final String wrappedPolicyPrefix = (String) args.get(WRAPPED_PREFIX);
+    final String wrappedPolicyPrefix = (String) args.remove(WRAPPED_PREFIX);
     if (wrappedPolicyPrefix == null) {
       return null;
-    } else {
-      args.remove(WRAPPED_PREFIX);
     }
 
     final String baseArgsPrefix = wrappedPolicyPrefix + '.';
