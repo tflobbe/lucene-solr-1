@@ -20,7 +20,6 @@ package org.apache.solr.core;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LiveIndexWriterConfig;
-
 import org.apache.solr.SolrTestCaseJ4;
 import org.apache.solr.core.SolrCore;
 import org.apache.solr.util.RefCounted;
@@ -32,7 +31,8 @@ public class TestSolrIndexConfig extends SolrTestCaseJ4 {
 
   @BeforeClass
   public static void beforeClass() throws Exception {
-    initCore("solrconfig-indexconfig.xml","schema.xml");
+    final String solrConfigFileName = random().nextBoolean() ? "solrconfig-indexconfig-mergepolicy.xml" : "solrconfig-indexconfig-mergepolicyfactory.xml";
+    initCore(solrConfigFileName,"schema.xml");
   }
 
   public void testLiveWriter() throws Exception {

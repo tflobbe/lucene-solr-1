@@ -20,6 +20,7 @@ package org.apache.solr.core;
 import javax.script.ScriptEngineManager;
 
 import org.junit.Assume;
+import org.junit.Test;
 
 public class TestBadConfig extends AbstractBadConfigTestBase {
 
@@ -79,6 +80,8 @@ public class TestBadConfig extends AbstractBadConfigTestBase {
   public void testBogusMergePolicy() throws Exception {
     assertConfigs("bad-mp-solrconfig.xml", "schema-minimal.xml",
                   "DummyMergePolicy");
+    assertConfigs("bad-mpf-solrconfig.xml", "schema-minimal.xml",
+                  "DummyMergePolicyFactory");
   }
 
   public void testSchemaMutableButNotManaged() throws Exception {
