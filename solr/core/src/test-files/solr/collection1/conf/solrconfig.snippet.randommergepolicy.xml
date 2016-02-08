@@ -18,29 +18,11 @@
 -->
 <!-- 
 
-A solrconfig.xml snippet containing indexConfig settings for randomized testing.
+A solrconfig.xml snippet containing mergePolicy settings for randomized testing.
 
 -->
-<indexConfig>
   <!-- this sys property is not set by SolrTestCaseJ4 because we ideally want to use
        the RandomMergePolicy in all tests - but some tests expect very specific
        Merge behavior, so those tests can set it as needed.
   -->
-  <xi:include href="solrconfig.snippet.randommergepolicy.xml" xmlns:xi="http://www.w3.org/2001/XInclude"/>
-  
-  <useCompoundFile>${useCompoundFile:false}</useCompoundFile>
-
-  <maxBufferedDocs>${solr.tests.maxBufferedDocs}</maxBufferedDocs>
-  <ramBufferSizeMB>${solr.tests.ramBufferSizeMB}</ramBufferSizeMB>
-
-  <mergeScheduler class="${solr.tests.mergeScheduler}" />
-
-  <writeLockTimeout>1000</writeLockTimeout>
-  <commitLockTimeout>10000</commitLockTimeout>
-
-  <!-- this sys property is not set by SolrTestCaseJ4 because almost all tests should
-       use the single process lockType for speed - but tests that explicitly need
-       to vary the lockType canset it as needed.
-  -->
-  <lockType>${solr.tests.lockType:single}</lockType>
-</indexConfig>
+  <mergePolicy class="${solr.tests.mergePolicy:org.apache.solr.util.RandomMergePolicy}" />

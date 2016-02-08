@@ -27,7 +27,7 @@
          to configure an explicit deletion policy, but we still wnat to randomize as much 
          as possible. 
     -->
-    <mergePolicy class="${solr.tests.mergePolicy:org.apache.solr.util.RandomMergePolicy}" />
+    <xi:include href="solrconfig.snippet.randommergepolicy.xml" xmlns:xi="http://www.w3.org/2001/XInclude"/>
     <useCompoundFile>${useCompoundFile:false}</useCompoundFile>
 
     <maxBufferedDocs>${solr.tests.maxBufferedDocs}</maxBufferedDocs>
