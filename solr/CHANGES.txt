@@ -274,6 +274,27 @@ Upgrading from Solr 5.4
 * bin/post now defaults application/json files to the /update/json/docs end-point.  Use `-format solr` to force
   files to the /update end-point.   See SOLR-7042 for more details.
 
+* In solrconfig.xml the <mergePolicy> element is deprecated in favor of a similar <mergePolicyFactory> element,
+  the <mergeFactor> and <maxMergeDocs> elements are also deprecated, please see SOLR-8621 for full details.
+  To migrate your existing solrconfig.xml, you can replace elements as follows:
+
+  <!-- deprecated -->
+  <mergeFactor>42</mergeFactor>
+  <mergePolicy class="org.apache.lucene.index.TieredMergePolicy">
+    ...
+  </mergePolicy>
+  <!-- replacement>
+  <mergePolicyFactory class="solr.TieredMergePolicyFactory">
+    <int name="maxMergeAtOnce">42</int> <!-- formerly the <mergeFactor> element implicitly set this -->
+    <int name="segmentsPerTier">42</int> <!-- formerly the <mergeFactor> element implicitly set this -->
+    ...
+  </mergePolicyFactory>
+
+  <!-- TODO LogMergePolicy example -->
+
+  <!-- todo/maybe example re: indexConfig/mergePolicy/useCompoundFile needing to become indexConfig/useCompoundFile -->
+
+
 Detailed Change List
 ----------------------
 
