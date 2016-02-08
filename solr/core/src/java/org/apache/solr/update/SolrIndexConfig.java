@@ -142,13 +142,15 @@ public class SolrIndexConfig implements MapSerializable {
     if (mergePolicyInfo != null && mergePolicyFactoryInfo != null) {
       throw new IllegalArgumentException("<mergePolicy> and <mergePolicyFactory> are mutually exclusive.");
     }
+    if (mergeFactor != -1 && mergePolicyFactoryInfo != null) {
+      throw new IllegalArgumentException("<mergeFactor> and <mergePolicyFactory> are mutually exclusive.");
+    }
+    if (maxMergeDocs != -1 && mergePolicyFactoryInfo != null) {
+      throw new IllegalArgumentException("<maxMergeDocs> and <mergePolicyFactory> are mutually exclusive.");
+    }
 
-    assertWarnOrFail("Beginning with Solr 5.5, <mergePolicy> is deprecated, use <mergePolicyFactory> instead.",
-        (mergePolicyInfo == null), false);
-    assertWarnOrFail("Beginning with Solr 5.5, <maxMergeDocs> is deprecated, configure it on the relevant <mergePolicyFactory> instead.",
-        (mergePolicyFactoryInfo != null && maxMergeDocs == def.maxMergeDocs), false);
-    assertWarnOrFail("Beginning with Solr 5.5, <mergeFactor> is deprecated, configure it on the relevant <mergePolicyFactory> instead.",
-        (mergePolicyFactoryInfo != null && mergeFactor == def.mergeFactor), false);
+    assertWarnOrFail("Beginning with Solr 5.5, <mergePolicy> and <mergeFactor> and <maxMergeDocs> are deprecated, use <mergePolicyFactory> instead.",
+        useMergePolicyInfo(), false);
 
     String val = solrConfig.get(prefix + "/termIndexInterval", null);
     if (val != null) {
@@ -239,13 +241,16 @@ public class SolrIndexConfig implements MapSerializable {
 
   private static final String NO_SUB_PACKAGES[] = new String[0];
 
+  private boolean useMergePolicyInfo() {
+    return (mergePolicyInfo != null || maxMergeDocs != -1 || mergeFactor != -1);
+  }
   /**
    * Builds a MergePolicy using the configured MergePolicyFactory
    * or if no factory is configured uses the configured mergePolicy PluginInfo.
    */
   @SuppressWarnings("unchecked")
   private MergePolicy buildMergePolicy(final IndexSchema schema) {
-    if (mergePolicyInfo != null) {
+    if (useMergePolicyInfo()) {
       return buildMergePolicyFromInfo(schema);
     }
 
