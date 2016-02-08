@@ -29,21 +29,11 @@ public class UpgradeIndexMergePolicyFactory extends WrapperMergePolicyFactory {
     super(resourceLoader, args);
   }
 
-  /** Returns an instance of the {@link MergePolicy} without setting all its parameters. */
   @Override
-  protected MergePolicy getMergePolicyInstance() {
+  public MergePolicy getMergePolicy() {
     final MergePolicy wrappedMP = getWrappedMergePolicy();
-    final MergePolicy mp;
-    if (className == null) {
-      mp = new UpgradeIndexMergePolicy(wrappedMP);
-    } else {
-      mp = resourceLoader.newInstance(
-          className,
-          UpgradeIndexMergePolicy.class,
-          NO_SUB_PACKAGES,
-          new Class[] {MergePolicy.class},
-          new Object[] {wrappedMP});
-    }
+    final MergePolicy mp = new UpgradeIndexMergePolicy(wrappedMP);
+    args.invokeSetters(mp);
     return mp;
   }
   

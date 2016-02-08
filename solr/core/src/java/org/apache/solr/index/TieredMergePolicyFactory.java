@@ -31,11 +31,7 @@ public class TieredMergePolicyFactory extends SimpleMergePolicyFactory {
   
   @Override
   protected MergePolicy getMergePolicyInstance() {
-    if (className == null) {
-      return new TieredMergePolicy();
-    } else {
-      return resourceLoader.newInstance(className, TieredMergePolicy.class);
-    }
+    return new TieredMergePolicy();
   }
 
 }

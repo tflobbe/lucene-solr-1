@@ -16,17 +16,20 @@
  */
 package org.apache.solr.index;
 
+import java.util.Iterator;
+
 import org.apache.lucene.index.MergePolicy;
 import org.apache.solr.core.SolrResourceLoader;
 
 /**
  * A {@link MergePolicyFactory} for wrapping additional {@link MergePolicyFactory factories}.
  */
-public abstract class WrapperMergePolicyFactory extends SimpleMergePolicyFactory {
+public abstract class WrapperMergePolicyFactory extends MergePolicyFactory {
 
-  protected static final String[] NO_SUB_PACKAGES = new String[0];
+  private static final String[] NO_SUB_PACKAGES = new String[0];
 
-  static final String WRAPPED_PREFIX = "wrapped.prefix"; // not private so that test(s) can use it
+  static final String WRAPPED_PREFIX = "wrapped.prefix";
+  static final String CLASS = "class";
 
   private final MergePolicyFactoryArgs wrappedMergePolicyArgs;
 
