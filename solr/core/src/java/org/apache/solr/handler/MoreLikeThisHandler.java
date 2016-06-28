@@ -23,7 +23,6 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -48,7 +47,6 @@ import org.apache.solr.common.params.MoreLikeThisParams;
 import org.apache.solr.common.params.SolrParams;
 import org.apache.solr.common.util.ContentStream;
 import org.apache.solr.common.util.NamedList;
-import org.apache.solr.common.util.SimpleOrderedMap;
 import org.apache.solr.handler.component.FacetComponent;
 import org.apache.solr.request.SimpleFacets;
 import org.apache.solr.request.SolrQueryRequest;
@@ -284,17 +282,7 @@ public class MoreLikeThisHandler extends RequestHandlerBase
   {
     public Term term;
     public float boost;
-        
-    public static Comparator<InterestingTerm> BOOST_ORDER = new Comparator<InterestingTerm>() {
-      @Override
-      public int compare(InterestingTerm t1, InterestingTerm t2) {
-        float d = t1.boost - t2.boost;
-        if( d == 0 ) {
-          return 0;
-        }
-        return (d>0)?1:-1;
-      }
-    };
+
   }
   
   /**

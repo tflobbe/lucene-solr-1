@@ -92,7 +92,6 @@ public class TestFSTs extends LuceneTestCase {
   public void setUp() throws Exception {
     super.setUp();
     dir = newMockDirectory();
-    dir.setPreventDoubleWrite(false);
   }
 
   @Override
@@ -310,7 +309,7 @@ public class TestFSTs extends LuceneTestCase {
   // file, up until a doc limit
   public void testRealTerms() throws Exception {
 
-    final LineFileDocs docs = new LineFileDocs(random(), true);
+    final LineFileDocs docs = new LineFileDocs(random());
     final int numDocs = TEST_NIGHTLY ? atLeast(1000) : atLeast(100);
     MockAnalyzer analyzer = new MockAnalyzer(random());
     analyzer.setMaxTokenLength(TestUtil.nextInt(random(), 1, IndexWriter.MAX_TERM_LENGTH));

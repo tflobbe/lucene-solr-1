@@ -60,6 +60,8 @@ public abstract class DirectoryFactory implements NamedListInitializedPlugin,
   public final static String LOCK_TYPE_SINGLE = "single";
   public final static String LOCK_TYPE_NONE   = "none";
   public final static String LOCK_TYPE_HDFS   = "hdfs";
+
+  protected volatile CoreContainer coreContainer;
   
   /**
    * Indicates a Directory will no longer be used, and when its ref count
@@ -142,6 +144,31 @@ public abstract class DirectoryFactory implements NamedListInitializedPlugin,
    * @throws IOException If there is a low-level I/O error.
    */
   public abstract void remove(String path) throws IOException;
+  
+  /**
+   * @param directory to calculate size of
+   * @return size in bytes
+   * @throws IOException on low level IO error
+   */
+  public long size(Directory directory) throws IOException {
+    return sizeOfDirectory(directory);
+  }
+  
+  /**
+   * @param path to calculate size of
+   * @return size in bytes
+   * @throws IOException on low level IO error
+   */
+  public long size(String path) throws IOException {
+    Directory dir = get(path, DirContext.DEFAULT, null);
+    long size;
+    try {
+      size = sizeOfDirectory(dir);
+    } finally {
+      release(dir); 
+    }
+    return size;
+  }
   
   /**
    * Override for more efficient moves.
@@ -324,5 +351,9 @@ public abstract class DirectoryFactory implements NamedListInitializedPlugin,
     File dirToRm = new File(oldDirPath);
     FileUtils.deleteDirectory(dirToRm);
     return !dirToRm.isDirectory();
+  }
+  
+  public void initCoreContainer(CoreContainer cc) {
+    this.coreContainer = cc;
   }
 }

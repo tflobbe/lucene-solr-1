@@ -197,12 +197,7 @@ public class TestRecovery extends SolrTestCaseJ4 {
       }
     };
 
-    UpdateLog.testing_logReplayFinishHook = new Runnable() {
-      @Override
-      public void run() {
-        logReplayFinish.release();
-      }
-    };
+    UpdateLog.testing_logReplayFinishHook = logReplayFinish::release;
 
 
     SolrQueryRequest req = req();
@@ -585,7 +580,7 @@ public class TestRecovery extends SolrTestCaseJ4 {
     version = addAndGetVersion(sdoc("id","reload1", "_version_", Long.toString(version)), null);
 
     // a deleteByQuery currently forces open a new realtime reader via the update log.
-    // This also tests that the update log was informed of the new udpate handler.
+    // This also tests that the update log was informed of the new update handler.
 
     deleteByQueryAndGetVersion("foo_t:hownowbrowncow", null);
 

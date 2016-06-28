@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
@@ -55,7 +54,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -362,7 +360,7 @@ public class TestLucene54DocValuesFormat extends BaseCompressingDocValuesFormatT
     
     // now compare again after the merge
     ir = writer.getReader();
-    LeafReader ar = getOnlySegmentReader(ir);
+    LeafReader ar = getOnlyLeafReader(ir);
     Terms terms = ar.terms("indexed");
     if (terms != null) {
       assertEquals(terms.size(), ar.getSortedSetDocValues("dv").getValueCount());
@@ -541,7 +539,7 @@ public class TestLucene54DocValuesFormat extends BaseCompressingDocValuesFormatT
       w.forceMerge(1);
       DirectoryReader r = DirectoryReader.open(w);
       w.close();
-      SegmentReader sr = getOnlySegmentReader(r);
+      LeafReader sr = getOnlyLeafReader(r);
       assertEquals(maxDoc, sr.maxDoc());
       SortedSetDocValues values = sr.getSortedSetDocValues("sset");
       assertNotNull(values);
@@ -591,7 +589,7 @@ public class TestLucene54DocValuesFormat extends BaseCompressingDocValuesFormatT
       w.forceMerge(1);
       DirectoryReader r = DirectoryReader.open(w);
       w.close();
-      SegmentReader sr = getOnlySegmentReader(r);
+      LeafReader sr = getOnlyLeafReader(r);
       assertEquals(maxDoc, sr.maxDoc());
       SortedNumericDocValues values = sr.getSortedNumericDocValues("snum");
       assertNotNull(values);

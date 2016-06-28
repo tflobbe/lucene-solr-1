@@ -21,12 +21,12 @@ import java.util.Objects;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.CompoundFormat;
-import org.apache.lucene.codecs.PointFormat;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.LiveDocsFormat;
 import org.apache.lucene.codecs.NormsFormat;
+import org.apache.lucene.codecs.PointsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
@@ -35,8 +35,8 @@ import org.apache.lucene.codecs.lucene50.Lucene50CompoundFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50FieldInfosFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50LiveDocsFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50SegmentInfoFormat;
-import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
+import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50TermVectorsFormat;
 import org.apache.lucene.codecs.lucene53.Lucene53NormsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
@@ -51,7 +51,9 @@ import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
  *
  * @see org.apache.lucene.codecs.lucene54 package documentation for file format details.
  * @lucene.experimental
+ * @deprecated Only for 5.x back compat
  */
+@Deprecated
 public class Lucene54Codec extends Codec {
   private final TermVectorsFormat vectorsFormat = new Lucene50TermVectorsFormat();
   private final FieldInfosFormat fieldInfosFormat = new Lucene50FieldInfosFormat();
@@ -160,8 +162,8 @@ public class Lucene54Codec extends Codec {
   }
 
   @Override
-  public final PointFormat pointFormat() {
-    return PointFormat.EMPTY;
+  public final PointsFormat pointsFormat() {
+    return PointsFormat.EMPTY;
   }
 
   private final PostingsFormat defaultFormat = PostingsFormat.forName("Lucene50");

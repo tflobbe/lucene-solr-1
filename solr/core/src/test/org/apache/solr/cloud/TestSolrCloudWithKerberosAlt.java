@@ -16,15 +16,13 @@
  */
 package org.apache.solr.cloud;
 
-import javax.security.auth.login.Configuration;
-
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.rules.SystemPropertiesRestoreRule;
+import javax.security.auth.login.Configuration;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.minikdc.MiniKdc;
@@ -36,8 +34,6 @@ import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.embedded.JettyConfig;
 import org.apache.solr.client.solrj.embedded.JettySolrRunner;
 import org.apache.solr.client.solrj.impl.CloudSolrClient;
-import org.apache.solr.client.solrj.impl.HttpClientUtil;
-import org.apache.solr.client.solrj.impl.Krb5HttpClientConfigurer;
 import org.apache.solr.client.solrj.request.CollectionAdminRequest;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrInputDocument;
@@ -53,6 +49,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
+
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.carrotsearch.randomizedtesting.rules.SystemPropertiesRestoreRule;
 
 /**
  * Test 5 nodes Solr cluster with Kerberos plugin enabled.
@@ -82,6 +81,7 @@ public class TestSolrCloudWithKerberosAlt extends LuceneTestCase {
   private MiniKdc kdc;
 
   private Locale savedLocale; // in case locale is broken and we need to fill in a working locale
+  
   @Rule
   public TestRule solrTestRules = RuleChain
       .outerRule(new SystemPropertiesRestoreRule());
@@ -101,7 +101,6 @@ public class TestSolrCloudWithKerberosAlt extends LuceneTestCase {
     savedLocale = KerberosTestUtil.overrideLocaleIfNotSpportedByMiniKdc();
     super.setUp();
     setupMiniKdc();
-    HttpClientUtil.setConfigurer(new Krb5HttpClientConfigurer());
   }
 
   private void setupMiniKdc() throws Exception {
@@ -129,7 +128,7 @@ public class TestSolrCloudWithKerberosAlt extends LuceneTestCase {
     Configuration.setConfiguration(conf);
 
     String jaasFilePath = kdcDir+File.separator+"jaas-client.conf";
-    FileUtils.write(new File(jaasFilePath), jaas);
+    FileUtils.write(new File(jaasFilePath), jaas, StandardCharsets.UTF_8);
     System.setProperty("java.security.auth.login.config", jaasFilePath);
     System.setProperty("solr.kerberos.jaas.appname", "SolrClient"); // Get this app name from the jaas file
     System.setProperty("solr.kerberos.cookie.domain", "127.0.0.1");
@@ -157,7 +156,6 @@ public class TestSolrCloudWithKerberosAlt extends LuceneTestCase {
   }
 
   protected void testCollectionCreateSearchDelete() throws Exception {
-    HttpClientUtil.setConfigurer(new Krb5HttpClientConfigurer());
     String collectionName = "testkerberoscollection";
 
     MiniSolrCloudCluster miniCluster
@@ -205,6 +203,7 @@ public class TestSolrCloudWithKerberosAlt extends LuceneTestCase {
       try (SolrZkClient zkClient = new SolrZkClient
           (miniCluster.getZkServer().getZkAddress(), AbstractZkTestCase.TIMEOUT, AbstractZkTestCase.TIMEOUT, null);
            ZkStateReader zkStateReader = new ZkStateReader(zkClient)) {
+        zkStateReader.createClusterStateWatchersAndUpdate();
         AbstractDistribZkTestBase.waitForRecoveriesToFinish(collectionName, zkStateReader, true, true, 330);
 
         // modify/query collection

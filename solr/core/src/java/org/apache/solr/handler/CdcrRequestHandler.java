@@ -361,7 +361,7 @@ public class CdcrRequestHandler extends RequestHandlerBase implements SolrCoreAw
       throws IOException, SolrServerException {
     ZkController zkController = core.getCoreDescriptor().getCoreContainer().getZkController();
     try {
-      zkController.getZkStateReader().updateClusterState();
+      zkController.getZkStateReader().forceUpdateCollection(collection);
     } catch (Exception e) {
       log.warn("Error when updating cluster state", e);
     }
@@ -595,7 +595,7 @@ public class CdcrRequestHandler extends RequestHandlerBase implements SolrCoreAw
 
     @Override
     public Long call() throws Exception {
-      try (HttpSolrClient server = new HttpSolrClient(baseUrl)) {
+      try (HttpSolrClient server = new HttpSolrClient.Builder(baseUrl).build()) {
         server.setConnectionTimeout(15000);
         server.setSoTimeout(60000);
 

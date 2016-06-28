@@ -33,11 +33,20 @@ import org.apache.lucene.util.BytesRef;
 
 /**
  * Expert: directly create a field for a document.  Most
- * users should use one of the sugar subclasses: {@link
- * LegacyIntField}, {@link LegacyLongField}, {@link LegacyFloatField}, {@link
- * LegacyDoubleField}, {@link BinaryDocValuesField}, {@link
- * NumericDocValuesField}, {@link SortedDocValuesField}, {@link
- * StringField}, {@link TextField}, {@link StoredField}.
+ * users should use one of the sugar subclasses: 
+ * <ul>
+ *    <li>{@link TextField}: {@link Reader} or {@link String} indexed for full-text search
+ *    <li>{@link StringField}: {@link String} indexed verbatim as a single token
+ *    <li>{@link IntPoint}: {@code int} indexed for exact/range queries.
+ *    <li>{@link LongPoint}: {@code long} indexed for exact/range queries.
+ *    <li>{@link FloatPoint}: {@code float} indexed for exact/range queries.
+ *    <li>{@link DoublePoint}: {@code double} indexed for exact/range queries.
+ *    <li>{@link SortedDocValuesField}: {@code byte[]} indexed column-wise for sorting/faceting
+ *    <li>{@link SortedSetDocValuesField}: {@code SortedSet<byte[]>} indexed column-wise for sorting/faceting
+ *    <li>{@link NumericDocValuesField}: {@code long} indexed column-wise for sorting/faceting
+ *    <li>{@link SortedNumericDocValuesField}: {@code SortedSet<long>} indexed column-wise for sorting/faceting
+ *    <li>{@link StoredField}: Stored-only value for retrieving in summary results
+ * </ul>
  *
  * <p> A field is a section of a Document. Each field has three
  * parts: name, type and value. Values may be text
@@ -88,11 +97,11 @@ public class Field implements IndexableField {
    */
   protected Field(String name, FieldType type) {
     if (name == null) {
-      throw new IllegalArgumentException("name cannot be null");
+      throw new IllegalArgumentException("name must not be null");
     }
     this.name = name;
     if (type == null) {
-      throw new IllegalArgumentException("type cannot be null");
+      throw new IllegalArgumentException("type must not be null");
     }
     this.type = type;
   }
@@ -109,13 +118,13 @@ public class Field implements IndexableField {
    */
   public Field(String name, Reader reader, FieldType type) {
     if (name == null) {
-      throw new IllegalArgumentException("name cannot be null");
+      throw new IllegalArgumentException("name must not be null");
     }
     if (type == null) {
-      throw new IllegalArgumentException("type cannot be null");
+      throw new IllegalArgumentException("type must not be null");
     }
     if (reader == null) {
-      throw new NullPointerException("reader cannot be null");
+      throw new NullPointerException("reader must not be null");
     }
     if (type.stored()) {
       throw new IllegalArgumentException("fields with a Reader value cannot be stored");
@@ -141,10 +150,10 @@ public class Field implements IndexableField {
    */
   public Field(String name, TokenStream tokenStream, FieldType type) {
     if (name == null) {
-      throw new IllegalArgumentException("name cannot be null");
+      throw new IllegalArgumentException("name must not be null");
     }
     if (tokenStream == null) {
-      throw new NullPointerException("tokenStream cannot be null");
+      throw new NullPointerException("tokenStream must not be null");
     }
     if (type.indexOptions() == IndexOptions.NONE || !type.tokenized()) {
       throw new IllegalArgumentException("TokenStream fields must be indexed and tokenized");
@@ -207,10 +216,10 @@ public class Field implements IndexableField {
    */
   public Field(String name, BytesRef bytes, FieldType type) {
     if (name == null) {
-      throw new IllegalArgumentException("name cannot be null");
+      throw new IllegalArgumentException("name must not be null");
     }
     if (bytes == null) {
-      throw new IllegalArgumentException("bytes cannot be null");
+      throw new IllegalArgumentException("bytes must not be null");
     }
     this.fieldsData = bytes;
     this.type = type;
@@ -231,10 +240,10 @@ public class Field implements IndexableField {
    */
   public Field(String name, String value, FieldType type) {
     if (name == null) {
-      throw new IllegalArgumentException("name cannot be null");
+      throw new IllegalArgumentException("name must not be null");
     }
     if (value == null) {
-      throw new IllegalArgumentException("value cannot be null");
+      throw new IllegalArgumentException("value must not be null");
     }
     if (!type.stored() && type.indexOptions() == IndexOptions.NONE) {
       throw new IllegalArgumentException("it doesn't make sense to have a field that "
@@ -298,7 +307,7 @@ public class Field implements IndexableField {
       throw new IllegalArgumentException("cannot change value type from " + fieldsData.getClass().getSimpleName() + " to String");
     }
     if (value == null) {
-      throw new IllegalArgumentException("value cannot be null");
+      throw new IllegalArgumentException("value must not be null");
     }
     fieldsData = value;
   }
@@ -337,7 +346,7 @@ public class Field implements IndexableField {
       throw new IllegalArgumentException("cannot set a BytesRef value on an indexed field");
     }
     if (value == null) {
-      throw new IllegalArgumentException("value cannot be null");
+      throw new IllegalArgumentException("value must not be null");
     }
     fieldsData = value;
   }

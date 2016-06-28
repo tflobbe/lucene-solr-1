@@ -70,7 +70,7 @@ public abstract class AbstractDistribZkTestBase extends BaseDistributedSearchTes
     System.setProperty(ZOOKEEPER_FORCE_SYNC, "false");
     System.setProperty(MockDirectoryFactory.SOLR_TESTS_ALLOW_READING_FILES_STILL_OPEN_FOR_WRITE, "true");
 
-    String schema = getSchemaFile();
+    String schema = getCloudSchemaFile();
     if (schema == null) schema = "schema.xml";
     AbstractZkTestCase.buildZooKeeper(zkServer.getZkHost(), zkServer.getZkAddress(), getCloudSolrConfig(), schema);
 
@@ -81,6 +81,10 @@ public abstract class AbstractDistribZkTestBase extends BaseDistributedSearchTes
   
   protected String getCloudSolrConfig() {
     return "solrconfig-tlog.xml";
+  }
+  
+  protected String getCloudSchemaFile() {
+    return getSchemaFile();
   }
   
   @Override
@@ -145,12 +149,16 @@ public abstract class AbstractDistribZkTestBase extends BaseDistributedSearchTes
     while (cont) {
       if (verbose) System.out.println("-");
       boolean sawLiveRecovering = false;
-      zkStateReader.updateClusterState();
       ClusterState clusterState = zkStateReader.getClusterState();
       Map<String,Slice> slices = clusterState.getSlicesMap(collection);
       assertNotNull("Could not find collection:" + collection, slices);
       for (Map.Entry<String,Slice> entry : slices.entrySet()) {
-        Map<String,Replica> shards = entry.getValue().getReplicasMap();
+        Slice slice = entry.getValue();
+        if (slice.getState() == Slice.State.CONSTRUCTION) { // similar to replica recovering; pretend its the same thing
+          if (verbose) System.out.println("Found a slice in construction state; will wait.");
+          sawLiveRecovering = true;
+        }
+        Map<String,Replica> shards = slice.getReplicasMap();
         for (Map.Entry<String,Replica> shard : shards.entrySet()) {
           if (verbose) System.out.println("replica:" + shard.getValue().getName() + " rstate:"
               + shard.getValue().getStr(ZkStateReader.STATE_PROP)
@@ -195,7 +203,6 @@ public abstract class AbstractDistribZkTestBase extends BaseDistributedSearchTes
     
     while (cont) {
       if (verbose) System.out.println("-");
-      zkStateReader.updateClusterState();
       ClusterState clusterState = zkStateReader.getClusterState();
       if (!clusterState.hasCollection(collection)) break;
       if (cnt == timeoutSeconds) {
@@ -236,22 +243,25 @@ public abstract class AbstractDistribZkTestBase extends BaseDistributedSearchTes
     fail("Illegal state, was: " + coreState + " expected:" + expectedState + " clusterState:" + reader.getClusterState());
   }
   
-  protected void assertAllActive(String collection,ZkStateReader zkStateReader)
+  protected static void assertAllActive(String collection, ZkStateReader zkStateReader)
       throws KeeperException, InterruptedException {
 
-      zkStateReader.updateClusterState();
+      zkStateReader.forceUpdateCollection(collection);
       ClusterState clusterState = zkStateReader.getClusterState();
       Map<String,Slice> slices = clusterState.getSlicesMap(collection);
       if (slices == null) {
         throw new IllegalArgumentException("Cannot find collection:" + collection);
       }
       for (Map.Entry<String,Slice> entry : slices.entrySet()) {
-        Map<String,Replica> shards = entry.getValue().getReplicasMap();
+        Slice slice = entry.getValue();
+        if (slice.getState() != Slice.State.ACTIVE) {
+          fail("Not all shards are ACTIVE - found a shard " + slice.getName() + " that is: " + slice.getState());
+        }
+        Map<String,Replica> shards = slice.getReplicasMap();
         for (Map.Entry<String,Replica> shard : shards.entrySet()) {
-
-          final Replica.State state = shard.getValue().getState();
-          if (state != Replica.State.ACTIVE) {
-            fail("Not all shards are ACTIVE - found a shard that is: " + state.toString());
+          Replica replica = shard.getValue();
+          if (replica.getState() != Replica.State.ACTIVE) {
+            fail("Not all replicas are ACTIVE - found a replica " + replica.getName() + " that is: " + replica.getState());
           }
         }
       }

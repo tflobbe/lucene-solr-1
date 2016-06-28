@@ -16,20 +16,19 @@
  */
 package org.apache.solr.client.solrj;
 
-import org.apache.solr.common.params.CommonParams;
-import org.apache.solr.common.params.FacetParams;
-import org.apache.solr.common.params.HighlightParams;
-import org.apache.solr.common.params.ModifiableSolrParams;
-import org.apache.solr.common.params.StatsParams;
-import org.apache.solr.common.params.TermsParams;
-import org.apache.solr.common.util.DateUtil;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
+
+import org.apache.solr.common.params.CommonParams;
+import org.apache.solr.common.params.FacetParams;
+import org.apache.solr.common.params.HighlightParams;
+import org.apache.solr.common.params.ModifiableSolrParams;
+import org.apache.solr.common.params.StatsParams;
+import org.apache.solr.common.params.TermsParams;
 
 
 /**
@@ -63,6 +62,14 @@ public class SolrQuery extends ModifiableSolrParams
   public SolrQuery(String q) {
     this();
     this.set(CommonParams.Q, q);
+  }
+
+  public SolrQuery(String k, String v, String... params) {
+    assert params.length % 2 == 0;
+    this.set(k, v);
+    for (int i = 0; i < params.length; i += 2) {
+      this.set(params[i], params[i + 1]);
+    }
   }
 
   /** enable/disable terms.  
@@ -266,9 +273,9 @@ public class SolrQuery extends ModifiableSolrParams
    */
   public SolrQuery addDateRangeFacet(String field, Date start, Date end, String gap) {
     add(FacetParams.FACET_RANGE, field);
-    add(String.format(Locale.ROOT, "f.%s.%s", field, FacetParams.FACET_RANGE_START), DateUtil.getThreadLocalDateFormat().format(start));
-    add(String.format(Locale.ROOT, "f.%s.%s", field, FacetParams.FACET_RANGE_END), DateUtil.getThreadLocalDateFormat().format(end));
-    add(String.format(Locale.ROOT, "f.%s.%s", field, FacetParams.FACET_RANGE_GAP), gap);
+    add(String.format(Locale.ROOT, "f.%s.%s", field, FacetParams.FACET_RANGE_START), start.toInstant().toString());
+    add(String.format(Locale.ROOT, "f.%s.%s", field, FacetParams.FACET_RANGE_END),   end.toInstant().toString());
+    add(String.format(Locale.ROOT, "f.%s.%s", field, FacetParams.FACET_RANGE_GAP),   gap);
     this.set(FacetParams.FACET, true);
     return this;
   }
@@ -859,8 +866,9 @@ public class SolrQuery extends ModifiableSolrParams
     return this.getInt(CommonParams.ROWS);
   }
 
-  public void setShowDebugInfo(boolean showDebugInfo) {
+  public SolrQuery setShowDebugInfo(boolean showDebugInfo) {
     this.set(CommonParams.DEBUG_QUERY, String.valueOf(showDebugInfo));
+    return this;
   }
 
   public void setDistrib(boolean val) {

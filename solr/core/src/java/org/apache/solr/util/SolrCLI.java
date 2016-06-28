@@ -26,7 +26,6 @@ import java.net.ConnectException;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -35,7 +34,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -55,6 +53,7 @@ import org.apache.commons.cli.Option;
 import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.exec.DefaultExecuteResultHandler;
 import org.apache.commons.exec.DefaultExecutor;
 import org.apache.commons.exec.Executor;
@@ -73,15 +72,17 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.Version;
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.CloudSolrClient;
-import org.apache.solr.client.solrj.impl.HttpClientConfigurer;
 import org.apache.solr.client.solrj.impl.HttpClientUtil;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
+import org.apache.solr.client.solrj.impl.HttpSolrClient.Builder;
+import org.apache.solr.client.solrj.impl.SolrHttpClientBuilder;
 import org.apache.solr.client.solrj.request.ContentStreamUpdateRequest;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrException;
@@ -94,6 +95,7 @@ import org.apache.solr.common.params.CommonParams;
 import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.util.ContentStreamBase;
 import org.apache.solr.common.util.NamedList;
+import org.apache.solr.common.util.StrUtils;
 import org.noggit.CharArr;
 import org.noggit.JSONParser;
 import org.noggit.JSONWriter;
@@ -101,13 +103,13 @@ import org.noggit.ObjectBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.solr.common.params.CommonParams.NAME;
-
 /**
  * Command-line utility for working with Solr.
  */
 public class SolrCLI {
-   
+
   /**
    * Defines the interface to a Solr tool that can be run from this command-line app.
    */
@@ -138,6 +140,7 @@ public class SolrCLI {
 
       int toolExitStatus = 0;
       try {
+        setBasicAuth(cli);
         runImpl(cli);
       } catch (Exception exc) {
         // since this is a CLI, spare the user the stacktrace
@@ -150,6 +153,21 @@ public class SolrCLI {
         }
       }
       return toolExitStatus;
+    }
+
+    private void setBasicAuth(CommandLine cli) throws Exception {
+      String basicauth = System.getProperty("basicauth", null);
+      if (basicauth != null) {
+        List<String> ss = StrUtils.splitSmart(basicauth, ':');
+        if (ss.size() != 2)
+          throw new Exception("Please provide 'basicauth' in the 'user:password' format");
+
+        HttpClientUtil.addRequestInterceptor((httpRequest, httpContext) -> {
+          String pair = ss.get(0) + ":" + ss.get(1);
+          byte[] encodedBytes = Base64.encodeBase64(pair.getBytes(UTF_8));
+          httpRequest.addHeader(new BasicHeader("Authorization", "Basic "+ new String(encodedBytes, UTF_8)));
+        });
+      }
     }
 
     protected abstract void runImpl(CommandLine cli) throws Exception;
@@ -210,7 +228,7 @@ public class SolrCLI {
       String zkHost = cli.getOptionValue("zkHost", ZK_HOST);
       
       log.debug("Connecting to Solr cluster: " + zkHost);
-      try (CloudSolrClient cloudSolrClient = new CloudSolrClient(zkHost)) {
+      try (CloudSolrClient cloudSolrClient = new CloudSolrClient.Builder().withZkHost(zkHost).build()) {
 
         String collection = cli.getOptionValue("collection");
         if (collection != null)
@@ -275,15 +293,15 @@ public class SolrCLI {
       exit(0);
     }
 
-    String configurerClassName = System.getProperty("solr.authentication.httpclient.configurer");
-    if (configurerClassName!=null) {
+    String builderClassName = System.getProperty("solr.authentication.httpclient.builder");
+    if (builderClassName!=null) {
       try {
-        Class c = Class.forName(configurerClassName);
-        HttpClientConfigurer configurer = (HttpClientConfigurer)c.newInstance();
-        HttpClientUtil.setConfigurer(configurer);
-        log.info("Set HttpClientConfigurer from: "+configurerClassName);
+        Class c = Class.forName(builderClassName);
+        SolrHttpClientBuilder builder = (SolrHttpClientBuilder)c.newInstance();
+        HttpClientUtil.setHttpClientBuilder(builder);
+        log.info("Set HttpClientConfigurer from: "+builderClassName);
       } catch (Exception ex) {
-        throw new RuntimeException("Error during loading of configurer '"+configurerClassName+"'.", ex);
+        throw new RuntimeException("Error during loading of configurer '"+builderClassName+"'.", ex);
       }
     }
 
@@ -651,7 +669,7 @@ public class SolrCLI {
     // ensure we're requesting JSON back from Solr
     HttpGet httpGet = new HttpGet(new URIBuilder(getUrl).setParameter(CommonParams.WT, CommonParams.JSON).build());
     // make the request and get back a parsed JSON object
-    Map<String,Object> json = httpClient.execute(httpGet, new SolrResponseHandler());
+    Map<String,Object> json = httpClient.execute(httpGet, new SolrResponseHandler(), HttpClientUtil.createNewHttpClientRequestContext());
     // check the response JSON from Solr to see if it is an error
     Long statusCode = asLong("/responseHeader/status", json);
     if (statusCode == -1) {
@@ -1163,7 +1181,7 @@ public class SolrCLI {
             q = new SolrQuery("*:*");
             q.setRows(0);
             q.set("distrib", "false");
-            try (HttpSolrClient solr = new HttpSolrClient(coreUrl)) {
+            try (HttpSolrClient solr = new HttpSolrClient.Builder(coreUrl).build()) {
 
               String solrUrl = solr.getBaseURL();
 
@@ -1286,7 +1304,7 @@ public class SolrCLI {
       if (zkHost == null)
         throw new IllegalStateException("Must provide either the '-solrUrl' or '-zkHost' parameters!");
 
-      try (CloudSolrClient cloudSolrClient = new CloudSolrClient(zkHost)) {
+      try (CloudSolrClient cloudSolrClient = new CloudSolrClient.Builder().withZkHost(zkHost).build()) {
         cloudSolrClient.connect();
         Set<String> liveNodes = cloudSolrClient.getZkStateReader().getClusterState().getLiveNodes();
         if (liveNodes.isEmpty())
@@ -1399,7 +1417,7 @@ public class SolrCLI {
             "create_collection can only be used when running in SolrCloud mode.\n");
       }
 
-      try (CloudSolrClient cloudSolrClient = new CloudSolrClient(zkHost)) {
+      try (CloudSolrClient cloudSolrClient = new CloudSolrClient.Builder().withZkHost(zkHost).build()) {
         echo("\nConnecting to ZooKeeper at " + zkHost+" ...");
         cloudSolrClient.connect();
         runCloudTool(cloudSolrClient, cli);
@@ -1640,7 +1658,7 @@ public class SolrCLI {
       String systemInfoUrl = solrUrl+"admin/info/system";
       CloseableHttpClient httpClient = getHttpClient();
 
-      Tool tool = null;
+      ToolBase tool = null;
       try {
         Map<String, Object> systemInfo = getJson(httpClient, systemInfoUrl, 2, true);
         if ("solrcloud".equals(systemInfo.get("mode"))) {
@@ -1648,7 +1666,7 @@ public class SolrCLI {
         } else {
           tool = new CreateCoreTool(stdout);
         }
-        tool.runTool(cli);
+        tool.runImpl(cli);
       } finally {
         closeHttpClient(httpClient);
       }
@@ -1708,7 +1726,7 @@ public class SolrCLI {
             " is running in standalone server mode, upconfig can only be used when running in SolrCloud mode.\n");
       }
 
-      try (CloudSolrClient cloudSolrClient = new CloudSolrClient(zkHost)) {
+      try (CloudSolrClient cloudSolrClient = new CloudSolrClient.Builder().withZkHost(zkHost).build()) {
         echo("\nConnecting to ZooKeeper at " + zkHost + " ...");
         cloudSolrClient.connect();
         upconfig(cloudSolrClient, cli, cli.getOptionValue("confname"), cli.getOptionValue("confdir"));
@@ -1763,7 +1781,7 @@ public class SolrCLI {
       }
 
 
-      try (CloudSolrClient cloudSolrClient = new CloudSolrClient(zkHost)) {
+      try (CloudSolrClient cloudSolrClient = new CloudSolrClient.Builder().withZkHost(zkHost).build()) {
         echo("\nConnecting to ZooKeeper at " + zkHost + " ...");
         cloudSolrClient.connect();
         downconfig(cloudSolrClient, cli.getOptionValue("confname"), cli.getOptionValue("confdir"));
@@ -1854,7 +1872,7 @@ public class SolrCLI {
 
     protected void deleteCollection(CommandLine cli) throws Exception {
       String zkHost = getZkHost(cli);
-      try (CloudSolrClient cloudSolrClient = new CloudSolrClient(zkHost)) {
+      try (CloudSolrClient cloudSolrClient = new CloudSolrClient.Builder().withZkHost(zkHost).build()) {
         echo("Connecting to ZooKeeper at " + zkHost);
         cloudSolrClient.connect();
         deleteCollection(cloudSolrClient, cli);
@@ -1882,7 +1900,7 @@ public class SolrCLI {
           log.warn("Skipping safety checks, configuration directory "+configName+" will be deleted with impunity.");
         } else {
           // need to scan all Collections to see if any are using the config
-          Set<String> collections = zkStateReader.getClusterState().getCollections();
+          Set<String> collections = zkStateReader.getClusterState().getCollectionsMap().keySet();
 
           // give a little note to the user if there are many collections in case it takes a while
           if (collections.size() > 50)
@@ -2031,7 +2049,7 @@ public class SolrCLI {
       echo("\nPOSTing request to Config API: " + solrUrl + updatePath);
       echo(jsonBody);
 
-      try (SolrClient solrClient = new HttpSolrClient(solrUrl)) {
+      try (SolrClient solrClient = new Builder(solrUrl).build()) {
         NamedList<Object> result = postJsonToSolr(solrClient, updatePath, jsonBody);
         Integer statusCode = (Integer)((NamedList)result.get("responseHeader")).get("status");
         if (statusCode == 0) {
@@ -2326,7 +2344,7 @@ public class SolrCLI {
       
       echo("\nWelcome to the SolrCloud example!\n");
 
-      Scanner readInput = prompt ? new Scanner(userInput, StandardCharsets.UTF_8.name()) : null;
+      Scanner readInput = prompt ? new Scanner(userInput, UTF_8.name()) : null;
       if (prompt) {
         echo("This interactive session will help you launch a SolrCloud cluster on your local workstation.");
 
@@ -2426,7 +2444,9 @@ public class SolrCLI {
     protected void waitToSeeLiveNodes(int maxWaitSecs, String zkHost, int numNodes) {
       CloudSolrClient cloudClient = null;
       try {
-        cloudClient = new CloudSolrClient(zkHost);
+        cloudClient = new CloudSolrClient.Builder()
+            .withZkHost(zkHost)
+            .build();
         cloudClient.connect();
         Set<String> liveNodes = cloudClient.getZkStateReader().getClusterState().getLiveNodes();
         int numLiveNodes = (liveNodes != null) ? liveNodes.size() : 0;
@@ -2490,7 +2510,7 @@ public class SolrCLI {
       String solrHome = solrHomeDir.getAbsolutePath();
 
       // don't display a huge path for solr home if it is relative to the cwd
-      if (!isWindows && solrHome.startsWith(cwdPath))
+      if (!isWindows && cwdPath.length() > 1 && solrHome.startsWith(cwdPath))
         solrHome = solrHome.substring(cwdPath.length()+1);
 
       String startCmd =
@@ -2635,14 +2655,13 @@ public class SolrCLI {
             "How many replicas per shard would you like to create? [2] ", "a replication factor", 2, 1, 4);
 
         echo("Please choose a configuration for the "+collectionName+" collection, available options are:");
-        cloudConfig =
-            prompt(readInput, "basic_configs, data_driven_schema_configs, sample_techproducts_configs, or managed_schema_configs ["+cloudConfig+"] ", cloudConfig);
+        String validConfigs = "basic_configs, data_driven_schema_configs, or sample_techproducts_configs ["+cloudConfig+"] ";
+        cloudConfig = prompt(readInput, validConfigs, cloudConfig);
 
         // validate the cloudConfig name
         while (!isValidConfig(configsetsDir, cloudConfig)) {
           echo(cloudConfig+" is not a valid configuration directory! Please choose a configuration for the "+collectionName+" collection, available options are:");
-          cloudConfig =
-              prompt(readInput, "basic_configs, data_driven_schema_configs, sample_techproducts_configs, or managed_schema_configs ["+cloudConfig+"] ", cloudConfig);
+          cloudConfig = prompt(readInput, validConfigs, cloudConfig);
         }
       } else {
         // must verify if default collection exists

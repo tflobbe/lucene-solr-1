@@ -148,7 +148,7 @@ public class TestBackwardsCompatibility extends LuceneTestCase {
     IndexWriterConfig conf = new IndexWriterConfig(analyzer)
       .setMergePolicy(mp).setUseCompoundFile(false);
     IndexWriter writer = new IndexWriter(dir, conf);
-    LineFileDocs docs = new LineFileDocs(null, true);
+    LineFileDocs docs = new LineFileDocs(null);
     for(int i=0;i<50;i++) {
       writer.addDocument(docs.nextDoc());
     }
@@ -215,8 +215,13 @@ public class TestBackwardsCompatibility extends LuceneTestCase {
     dir.close();
   }
 
-  // TODO: on 6.0.0 release, gen the indices and add here:
   final static String[] oldNames = {
+    "6.0.0-cfs",
+    "6.0.0-nocfs",
+    "6.0.1-cfs",
+    "6.0.1-nocfs",
+    "6.1.0-cfs",
+    "6.1.0-nocfs"
   };
   
   final String[] unsupportedNames = {
@@ -341,7 +346,11 @@ public class TestBackwardsCompatibility extends LuceneTestCase {
       "5.4.1-cfs",
       "5.4.1-nocfs",
       "5.5.0-cfs",
-      "5.5.0-nocfs"
+      "5.5.0-nocfs",
+      "5.5.1-cfs",
+      "5.5.1-nocfs",
+      "5.5.2-cfs",
+      "5.5.2-nocfs"
   };
 
   // TODO: on 6.0.0 release, gen the single segment indices and add here:

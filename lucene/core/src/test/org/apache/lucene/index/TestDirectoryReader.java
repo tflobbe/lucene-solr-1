@@ -19,7 +19,6 @@ package org.apache.lucene.index;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -761,7 +760,7 @@ public class TestDirectoryReader extends LuceneTestCase {
     writer.commit();
   
     DirectoryReader r = DirectoryReader.open(dir);
-    LeafReader r1 = getOnlySegmentReader(r);
+    LeafReader r1 = getOnlyLeafReader(r);
     assertEquals(26, r1.terms("field").size());
     assertEquals(10, r1.terms("number").size());
     writer.addDocument(doc);

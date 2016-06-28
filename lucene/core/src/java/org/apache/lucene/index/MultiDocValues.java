@@ -486,8 +486,8 @@ public class MultiDocValues {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(OrdinalMap.class);
 
-    // cache key of whoever asked for this awful thing
-    final Object owner;
+    /** Cache key of whoever asked for this awful thing */
+    public final Object owner;
     // globalOrd -> (globalOrd - segmentOrd) where segmentOrd is the the ordinal in the first segment that contains this term
     final PackedLongValues globalOrdDeltas;
     // globalOrd -> first segment container
@@ -661,7 +661,7 @@ public class MultiDocValues {
     public final OrdinalMap mapping;
   
     /** Creates a new MultiSortedDocValues over <code>values</code> */
-    MultiSortedDocValues(SortedDocValues values[], int docStarts[], OrdinalMap mapping) throws IOException {
+    public MultiSortedDocValues(SortedDocValues values[], int docStarts[], OrdinalMap mapping) throws IOException {
       assert docStarts.length == values.length + 1;
       this.values = values;
       this.docStarts = docStarts;
@@ -703,7 +703,7 @@ public class MultiDocValues {
     LongValues currentGlobalOrds;
     
     /** Creates a new MultiSortedSetDocValues over <code>values</code> */
-    MultiSortedSetDocValues(SortedSetDocValues values[], int docStarts[], OrdinalMap mapping) throws IOException {
+    public MultiSortedSetDocValues(SortedSetDocValues values[], int docStarts[], OrdinalMap mapping) throws IOException {
       assert docStarts.length == values.length + 1;
       this.values = values;
       this.docStarts = docStarts;

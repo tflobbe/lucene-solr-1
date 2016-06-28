@@ -16,15 +16,13 @@
  */
 package org.apache.lucene.search;
 
-
 import java.io.IOException;
+import java.util.AbstractCollection;
 import java.util.Arrays;
-
-import org.apache.lucene.document.BinaryPoint;
-import org.apache.lucene.document.DoublePoint;
-import org.apache.lucene.document.FloatPoint;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 import org.apache.lucene.document.IntPoint;
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -48,13 +46,7 @@ import org.apache.lucene.util.StringHelper;
  * create range queries for lucene's standard {@code Point} types, refer to factory
  * methods on those classes, e.g. {@link IntPoint#newSetQuery IntPoint.newSetQuery()} for 
  * fields indexed with {@link IntPoint}.
-
- * @see IntPoint
- * @see LongPoint
- * @see FloatPoint
- * @see DoublePoint
- * @see BinaryPoint 
- *
+ * @see PointValues
  * @lucene.experimental */
 
 public abstract class PointInSetQuery extends Query {
@@ -114,7 +106,7 @@ public abstract class PointInSetQuery extends Query {
   }
 
   @Override
-  public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+  public final Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
 
     // We don't use RandomAccessWeight here: it's no good to approximate with "match all docs".
     // This is an inverted structure and should be used in the first pass:
@@ -141,7 +133,7 @@ public abstract class PointInSetQuery extends Query {
           throw new IllegalArgumentException("field=\"" + field + "\" was indexed with bytesPerDim=" + fieldInfo.getPointNumBytes() + " but this query has bytesPerDim=" + bytesPerDim);
         }
 
-        DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc());
+        DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, field);
 
         if (numDims == 1) {
 
@@ -172,14 +164,13 @@ public abstract class PointInSetQuery extends Query {
     private final DocIdSetBuilder result;
     private TermIterator iterator;
     private BytesRef nextQueryPoint;
-    private final byte[] lastMaxPackedValue;
     private final BytesRef scratch = new BytesRef();
     private final PrefixCodedTerms sortedPackedPoints;
+    private DocIdSetBuilder.BulkAdder adder;
 
     public MergePointVisitor(PrefixCodedTerms sortedPackedPoints, DocIdSetBuilder result) throws IOException {
       this.result = result;
       this.sortedPackedPoints = sortedPackedPoints;
-      lastMaxPackedValue = new byte[bytesPerDim];
       scratch.length = bytesPerDim;
       this.iterator = sortedPackedPoints.iterator();
       nextQueryPoint = iterator.next();
@@ -187,12 +178,12 @@ public abstract class PointInSetQuery extends Query {
 
     @Override
     public void grow(int count) {
-      result.grow(count);
+      adder = result.grow(count);
     }
 
     @Override
     public void visit(int docID) {
-      result.add(docID);
+      adder.add(docID);
     }
 
     @Override
@@ -202,7 +193,7 @@ public abstract class PointInSetQuery extends Query {
         int cmp = nextQueryPoint.compareTo(scratch);
         if (cmp == 0) {
           // Query point equals index point, so collect and return
-          result.add(docID);
+          adder.add(docID);
           break;
         } else if (cmp < 0) {
           // Query point is before index point, so we move to next query point
@@ -250,6 +241,7 @@ public abstract class PointInSetQuery extends Query {
 
     private final DocIdSetBuilder result;
     private final byte[] pointBytes;
+    private DocIdSetBuilder.BulkAdder adder;
 
     public SinglePointVisitor(DocIdSetBuilder result) {
       this.result = result;
@@ -264,12 +256,12 @@ public abstract class PointInSetQuery extends Query {
 
     @Override
     public void grow(int count) {
-      result.grow(count);
+      adder = result.grow(count);
     }
 
     @Override
     public void visit(int docID) {
-      result.add(docID);
+      adder.add(docID);
     }
 
     @Override
@@ -277,7 +269,7 @@ public abstract class PointInSetQuery extends Query {
       assert packedValue.length == pointBytes.length;
       if (Arrays.equals(packedValue, pointBytes)) {
         // The point for this doc matches the point we are querying on
-        result.add(docID);
+        adder.add(docID);
       }
     }
 
@@ -314,9 +306,58 @@ public abstract class PointInSetQuery extends Query {
     }
   }
 
+  public Collection<byte[]> getPackedPoints() {
+    return new AbstractCollection<byte[]>() {
+
+      @Override
+      public Iterator<byte[]> iterator() {
+        int size = (int) sortedPackedPoints.size();
+        PrefixCodedTerms.TermIterator iterator = sortedPackedPoints.iterator();
+        return new Iterator<byte[]>() {
+
+          int upto = 0;
+
+          @Override
+          public boolean hasNext() {
+            return upto < size;
+          }
+
+          @Override
+          public byte[] next() {
+            if (upto == size) {
+              throw new NoSuchElementException();
+            }
+
+            upto++;
+            BytesRef next = iterator.next();
+            return Arrays.copyOfRange(next.bytes, next.offset, next.length);
+          }
+        };
+      }
+
+      @Override
+      public int size() {
+        return (int) sortedPackedPoints.size();
+      }
+    };
+  }
+
+  public String getField() {
+    return field;
+  }
+
+  public int getNumDims() {
+    return numDims;
+  }
+
+  public int getBytesPerDim() {
+    return bytesPerDim;
+  }
+
   @Override
-  public int hashCode() {
-    int hash = super.hashCode();
+  public final int hashCode() {
+    int hash = classHash();
+    hash = 31 * hash + field.hashCode();
     hash = 31 * hash + sortedPackedPointsHashCode;
     hash = 31 * hash + numDims;
     hash = 31 * hash + bytesPerDim;
@@ -324,20 +365,21 @@ public abstract class PointInSetQuery extends Query {
   }
 
   @Override
-  public boolean equals(Object other) {
-    if (super.equals(other)) {
-      final PointInSetQuery q = (PointInSetQuery) other;
-      return q.numDims == numDims &&
-        q.bytesPerDim == bytesPerDim &&
-        q.sortedPackedPointsHashCode == sortedPackedPointsHashCode &&
-        q.sortedPackedPoints.equals(sortedPackedPoints);
-    }
-
-    return false;
+  public final boolean equals(Object other) {
+    return sameClassAs(other) &&
+           equalsTo(getClass().cast(other));
+  }
+  
+  private boolean equalsTo(PointInSetQuery other) {
+    return other.field.equals(field) &&
+           other.numDims == numDims &&
+           other.bytesPerDim == bytesPerDim &&
+           other.sortedPackedPointsHashCode == sortedPackedPointsHashCode &&
+           other.sortedPackedPoints.equals(sortedPackedPoints);
   }
 
   @Override
-  public String toString(String field) {
+  public final String toString(String field) {
     final StringBuilder sb = new StringBuilder();
     if (this.field.equals(field) == false) {
       sb.append(this.field);

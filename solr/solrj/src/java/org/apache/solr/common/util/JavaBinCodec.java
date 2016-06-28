@@ -207,7 +207,9 @@ public class JavaBinCodec {
         if (writeKnownType(tmpVal)) return;
       }
     }
-
+    // Fallback to do *something*.
+    // note: if the user of this codec doesn't want this (e.g. UpdateLog) it can supply an ObjectResolver that does
+    //  something else like throw an exception.
     writeVal(val.getClass().getName() + ':' + val.toString());
   }
 
@@ -896,7 +898,7 @@ public class JavaBinCodec {
    * <p>
    * Implementors of this interface write a method to serialize a given object using an existing {@link JavaBinCodec}
    */
-  public static interface ObjectResolver {
+  public interface ObjectResolver {
     /**
      * Examine and attempt to serialize the given object, using a {@link JavaBinCodec} to write it to a stream.
      *
@@ -905,12 +907,12 @@ public class JavaBinCodec {
      * @return the object {@code o} itself if it could not be serialized, or {@code null} if the whole object was successfully serialized.
      * @see JavaBinCodec
      */
-    public Object resolve(Object o, JavaBinCodec codec) throws IOException;
+    Object resolve(Object o, JavaBinCodec codec) throws IOException;
   }
 
   public interface WritableDocFields {
-    public boolean isWritable(String name);
-    public boolean wantsAllFields();
+    boolean isWritable(String name);
+    boolean wantsAllFields();
   }
 
 

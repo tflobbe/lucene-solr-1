@@ -28,21 +28,17 @@ package org.apache.lucene.util;
  */
 public abstract class IntroSorter extends Sorter {
 
-  static int ceilLog2(int n) {
-    return Integer.SIZE - Integer.numberOfLeadingZeros(n - 1);
-  }
-
   /** Create a new {@link IntroSorter}. */
   public IntroSorter() {}
 
   @Override
   public final void sort(int from, int to) {
     checkRange(from, to);
-    quicksort(from, to, ceilLog2(to - from));
+    quicksort(from, to, 2 * MathUtil.log(to - from, 2));
   }
 
   void quicksort(int from, int to, int maxDepth) {
-    if (to - from < THRESHOLD) {
+    if (to - from < INSERTION_SORT_THRESHOLD) {
       insertionSort(from, to);
       return;
     } else if (--maxDepth < 0) {

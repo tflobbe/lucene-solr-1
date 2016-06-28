@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -258,6 +258,7 @@ public class RealTimeGetComponent extends SearchComponent
        if (docid < 0) continue;
        Document luceneDocument = searcher.doc(docid, rsp.getReturnFields().getLuceneFieldNames());
        SolrDocument doc = toSolrDoc(luceneDocument,  core.getLatestSchema());
+       searcher.decorateDocValueFields(doc, docid, searcher.getNonStoredDVs(true));
        if( transformer != null ) {
          transformer.transform(doc, docid, 0);
        }
@@ -340,7 +341,7 @@ public class RealTimeGetComponent extends SearchComponent
         if (docid < 0) return null;
         Document luceneDocument = searcher.doc(docid);
         sid = toSolrInputDocument(luceneDocument, core.getLatestSchema());
-        searcher.decorateDocValueFields(sid, docid, searcher.getNonStoredDVs(false));
+        searcher.decorateDocValueFields(sid, docid, searcher.getNonStoredDVsWithoutCopyTargets());
       }
     } finally {
       if (searcherHolder != null) {
@@ -408,8 +409,15 @@ public class RealTimeGetComponent extends SearchComponent
     // copy the stored fields only
     Document out = new Document();
     for (IndexableField f : doc.getFields()) {
-      if (f.fieldType().stored() ) {
-        out.add((IndexableField) f);
+      if (f.fieldType().stored()) {
+        out.add(f);
+      } else if (f.fieldType().docValuesType() != DocValuesType.NONE) {
+        SchemaField schemaField = schema.getFieldOrNull(f.name());
+        if (schemaField != null && !schemaField.stored() && schemaField.useDocValuesAsStored()) {
+          out.add(f);
+        }
+      } else {
+        log.debug("Don't know how to handle field " + f);
       }
     }
 

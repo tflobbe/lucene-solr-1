@@ -41,7 +41,6 @@ import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.UnicodeUtil;
 import org.apache.solr.common.SolrException;
-import org.apache.solr.common.util.NamedList;
 import org.apache.solr.common.util.SimpleOrderedMap;
 import org.apache.solr.schema.FieldType;
 import org.apache.solr.schema.SchemaField;
@@ -125,13 +124,8 @@ public class FacetField extends FacetRequest {
 
     org.apache.lucene.document.FieldType.LegacyNumericType ntype = ft.getNumericType();
 
-    if (sf.hasDocValues() && ntype==null) {
-      // single and multi-valued string docValues
-      return new FacetFieldProcessorDV(fcontext, this, sf);
-    }
-
     if (!multiToken) {
-      if (sf.getType().getNumericType() != null) {
+      if (ntype != null) {
         // single valued numeric (docvalues or fieldcache)
         return new FacetFieldProcessorNumeric(fcontext, this, sf);
       } else {
@@ -140,8 +134,10 @@ public class FacetField extends FacetRequest {
       }
     }
 
-    // multivalued but field doesn't have docValues
-    if (method == FacetMethod.DV) {
+    // multi-valued after this point
+
+    if (sf.hasDocValues() || method == FacetMethod.DV) {
+      // single and multi-valued string docValues
       return new FacetFieldProcessorDV(fcontext, this, sf);
     }
 

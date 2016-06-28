@@ -405,13 +405,8 @@ public class TestDemoParallelLeafReader extends LuceneTestCase {
             //TestUtil.checkIndex(dir);
 
             SegmentInfos infos = SegmentInfos.readLatestCommit(dir);
-            final LeafReader parLeafReader;
-            if (infos.size() == 1) {
-              parLeafReader = new SegmentReader(infos.info(0), IOContext.DEFAULT);
-            } else {
-              // This just means we didn't forceMerge above:
-              parLeafReader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(dir));
-            }
+            assert infos.size() == 1;
+            final LeafReader parLeafReader = new SegmentReader(infos.info(0), IOContext.DEFAULT);
 
             //checkParallelReader(leaf, parLeafReader, schemaGen);
 
@@ -508,7 +503,7 @@ public class TestDemoParallelLeafReader extends LuceneTestCase {
 
       class ReindexingOneMerge extends OneMerge {
 
-        List<LeafReader> parallelReaders;
+        final List<ParallelLeafReader> parallelReaders = new ArrayList<>();
         final long schemaGen;
 
         ReindexingOneMerge(List<SegmentCommitInfo> segments) {
@@ -524,33 +519,23 @@ public class TestDemoParallelLeafReader extends LuceneTestCase {
         }
 
         @Override
-        public List<CodecReader> getMergeReaders() throws IOException {
-          if (parallelReaders == null) {
-            parallelReaders = new ArrayList<>();
-            for (CodecReader reader : super.getMergeReaders()) {
-              parallelReaders.add(getCurrentReader((SegmentReader)reader, schemaGen));
-            }
+        public CodecReader wrapForMerge(CodecReader reader) throws IOException {
+          LeafReader wrapped = getCurrentReader((SegmentReader)reader, schemaGen);
+          if (wrapped instanceof ParallelLeafReader) {
+            parallelReaders.add((ParallelLeafReader) wrapped);
           }
-
-          // TODO: fix ParallelLeafReader, if this is a good use case
-          List<CodecReader> mergeReaders = new ArrayList<>();
-          for (LeafReader reader : parallelReaders) {
-            mergeReaders.add(SlowCodecReaderWrapper.wrap(reader));
-          }
-          return mergeReaders;
+          return SlowCodecReaderWrapper.wrap(wrapped);
         }
 
         @Override
         public void mergeFinished() throws IOException {
           Throwable th = null;
-          for(LeafReader r : parallelReaders) {
-            if (r instanceof ParallelLeafReader) {
-              try {
-                r.decRef();
-              } catch (Throwable t) {
-                if (th == null) {
-                  th = t;
-                }
+          for (ParallelLeafReader r : parallelReaders) {
+            try {
+              r.decRef();
+            } catch (Throwable t) {
+              if (th == null) {
+                th = t;
               }
             }
           }
@@ -566,10 +551,6 @@ public class TestDemoParallelLeafReader extends LuceneTestCase {
           super.setMergeInfo(info);
         }
 
-        @Override
-        public MergePolicy.DocMap getDocMap(final MergeState mergeState) {
-          return super.getDocMap(mergeState);
-        }
       }
 
       class ReindexingMergeSpecification extends MergeSpecification {
@@ -682,9 +663,7 @@ public class TestDemoParallelLeafReader extends LuceneTestCase {
           w.addDocument(newDoc);
         }
 
-        if (random().nextBoolean()) {
-          w.forceMerge(1);
-        }
+        w.forceMerge(1);
 
         w.close();
       }
@@ -750,9 +729,7 @@ public class TestDemoParallelLeafReader extends LuceneTestCase {
           }
         }
 
-        if (random().nextBoolean()) {
-          w.forceMerge(1);
-        }
+        w.forceMerge(1);
 
         w.close();
       }
@@ -845,9 +822,7 @@ public class TestDemoParallelLeafReader extends LuceneTestCase {
           }
         }
 
-        if (random().nextBoolean()) {
-          w.forceMerge(1);
-        }
+        w.forceMerge(1);
 
         w.close();
       }

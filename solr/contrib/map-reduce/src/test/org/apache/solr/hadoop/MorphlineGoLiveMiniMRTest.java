@@ -380,7 +380,7 @@ public class MorphlineGoLiveMiniMRTest extends AbstractFullDistribZkTestBase {
     String[] args = new String[]{};
     List<String> argList = new ArrayList<>();
 
-    try (HttpSolrClient server = new HttpSolrClient(cloudJettys.get(0).url)) {
+    try (HttpSolrClient server = getHttpSolrClient(cloudJettys.get(0).url)) {
 
       args = new String[]{
           "--solr-home-dir=" + MINIMR_CONF_DIR.getAbsolutePath(),
@@ -646,7 +646,6 @@ public class MorphlineGoLiveMiniMRTest extends AbstractFullDistribZkTestBase {
       }
       
       Thread.sleep(200);
-      cloudClient.getZkStateReader().updateClusterState();
     }
     
     if (TEST_NIGHTLY) {
@@ -707,7 +706,7 @@ public class MorphlineGoLiveMiniMRTest extends AbstractFullDistribZkTestBase {
       Collection<Replica> replicas = slice.getReplicas();
       long found = -1;
       for (Replica replica : replicas) {
-        try (HttpSolrClient client = new HttpSolrClient(new ZkCoreNodeProps(replica).getCoreUrl())) {
+        try (HttpSolrClient client = getHttpSolrClient(new ZkCoreNodeProps(replica).getCoreUrl())) {
           SolrQuery query = new SolrQuery("*:*");
           query.set("distrib", false);
           QueryResponse replicaResults = client.query(query);

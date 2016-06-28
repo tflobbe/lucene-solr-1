@@ -18,8 +18,8 @@ package org.apache.lucene.index;
 
 import java.io.IOException;
 
-import org.apache.lucene.codecs.PointReader;
-import org.apache.lucene.codecs.PointWriter;
+import org.apache.lucene.codecs.PointsReader;
+import org.apache.lucene.codecs.PointsWriter;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.BytesRef;
@@ -31,7 +31,9 @@ class PointValuesWriter {
   private final ByteBlockPool bytes;
   private final Counter iwBytesUsed;
   private int[] docIDs;
+  private int numPoints;
   private int numDocs;
+  private int lastDocID = -1;
   private final byte[] packedValue;
 
   public PointValuesWriter(DocumentsWriterPerThread docWriter, FieldInfo fieldInfo) {
@@ -46,30 +48,34 @@ class PointValuesWriter {
   // TODO: if exactly the same value is added to exactly the same doc, should we dedup?
   public void addPackedValue(int docID, BytesRef value) {
     if (value == null) {
-      throw new IllegalArgumentException("field=" + fieldInfo.name + ": point value cannot be null");
+      throw new IllegalArgumentException("field=" + fieldInfo.name + ": point value must not be null");
     }
     if (value.length != fieldInfo.getPointDimensionCount() * fieldInfo.getPointNumBytes()) {
       throw new IllegalArgumentException("field=" + fieldInfo.name + ": this field's value has length=" + value.length + " but should be " + (fieldInfo.getPointDimensionCount() * fieldInfo.getPointNumBytes()));
     }
-    if (docIDs.length == numDocs) {
-      docIDs = ArrayUtil.grow(docIDs, numDocs+1);
-      iwBytesUsed.addAndGet((docIDs.length - numDocs) * Integer.BYTES);
+    if (docIDs.length == numPoints) {
+      docIDs = ArrayUtil.grow(docIDs, numPoints+1);
+      iwBytesUsed.addAndGet((docIDs.length - numPoints) * Integer.BYTES);
     }
     bytes.append(value);
-    docIDs[numDocs] = docID;
-    numDocs++;
+    docIDs[numPoints] = docID;
+    if (docID != lastDocID) {
+      numDocs++;
+      lastDocID = docID;
+    }
+    numPoints++;
   }
 
-  public void flush(SegmentWriteState state, PointWriter writer) throws IOException {
+  public void flush(SegmentWriteState state, PointsWriter writer) throws IOException {
 
     writer.writeField(fieldInfo,
-                      new PointReader() {
+                      new PointsReader() {
                         @Override
                         public void intersect(String fieldName, IntersectVisitor visitor) throws IOException {
                           if (fieldName.equals(fieldInfo.name) == false) {
                             throw new IllegalArgumentException("fieldName must be the same");
                           }
-                          for(int i=0;i<numDocs;i++) {
+                          for(int i=0;i<numPoints;i++) {
                             bytes.readBytes(packedValue.length * i, packedValue, 0, packedValue.length);
                             visitor.visit(docIDs[i], packedValue);
                           }
@@ -111,12 +117,12 @@ class PointValuesWriter {
 
                         @Override
                         public long size(String fieldName) {
-                          throw new UnsupportedOperationException();
+                          return numPoints;
                         }
 
                         @Override
                         public int getDocCount(String fieldName) {
-                          throw new UnsupportedOperationException();
+                          return numDocs;
                         }
                       });
   }

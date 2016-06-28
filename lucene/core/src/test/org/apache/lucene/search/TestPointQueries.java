@@ -22,9 +22,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -32,11 +35,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
-import org.apache.lucene.codecs.PointFormat;
-import org.apache.lucene.codecs.PointReader;
-import org.apache.lucene.codecs.PointWriter;
-import org.apache.lucene.codecs.lucene60.Lucene60PointReader;
-import org.apache.lucene.codecs.lucene60.Lucene60PointWriter;
+import org.apache.lucene.codecs.PointsFormat;
+import org.apache.lucene.codecs.PointsReader;
+import org.apache.lucene.codecs.PointsWriter;
+import org.apache.lucene.codecs.lucene60.Lucene60PointsReader;
+import org.apache.lucene.codecs.lucene60.Lucene60PointsWriter;
 import org.apache.lucene.document.BinaryPoint;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
@@ -53,13 +56,11 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiDocValues;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.apache.lucene.index.SlowCompositeReaderWrapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -353,12 +354,12 @@ public class TestPointQueries extends LuceneTestCase {
 
   @Nightly
   public void testRandomLongsBig() throws Exception {
-    doTestRandomLongs(200000);
+    doTestRandomLongs(100000);
   }
 
   private void doTestRandomLongs(int count) throws Exception {
 
-    int numValues = atLeast(count);
+    int numValues = TestUtil.nextInt(random(), count, count*2);
 
     if (VERBOSE) {
       System.out.println("TEST: numValues=" + numValues);
@@ -1153,25 +1154,25 @@ public class TestPointQueries extends LuceneTestCase {
   }
 
   private static Codec getCodec() {
-    if (Codec.getDefault().getName().equals("Lucene60")) {
+    if (Codec.getDefault().getName().equals("Lucene62")) {
       int maxPointsInLeafNode = TestUtil.nextInt(random(), 16, 2048);
-      double maxMBSortInHeap = 4.0 + (3*random().nextDouble());
+      double maxMBSortInHeap = 5.0 + (3*random().nextDouble());
       if (VERBOSE) {
-        System.out.println("TEST: using Lucene60PointFormat with maxPointsInLeafNode=" + maxPointsInLeafNode + " and maxMBSortInHeap=" + maxMBSortInHeap);
+        System.out.println("TEST: using Lucene60PointsFormat with maxPointsInLeafNode=" + maxPointsInLeafNode + " and maxMBSortInHeap=" + maxMBSortInHeap);
       }
 
-      return new FilterCodec("Lucene60", Codec.getDefault()) {
+      return new FilterCodec("Lucene62", Codec.getDefault()) {
         @Override
-        public PointFormat pointFormat() {
-          return new PointFormat() {
+        public PointsFormat pointsFormat() {
+          return new PointsFormat() {
             @Override
-            public PointWriter fieldsWriter(SegmentWriteState writeState) throws IOException {
-              return new Lucene60PointWriter(writeState, maxPointsInLeafNode, maxMBSortInHeap);
+            public PointsWriter fieldsWriter(SegmentWriteState writeState) throws IOException {
+              return new Lucene60PointsWriter(writeState, maxPointsInLeafNode, maxMBSortInHeap);
             }
 
             @Override
-            public PointReader fieldsReader(SegmentReadState readState) throws IOException {
-              return new Lucene60PointReader(readState);
+            public PointsReader fieldsReader(SegmentReadState readState) throws IOException {
+              return new Lucene60PointsReader(readState);
             }
           };
         }
@@ -1604,6 +1605,14 @@ public class TestPointQueries extends LuceneTestCase {
     r.close();
     dir.close();
   }
+  
+  /** Boxed methods for primitive types should behave the same as unboxed: just sugar */
+  public void testPointIntSetBoxed() throws Exception {
+    assertEquals(IntPoint.newSetQuery("foo", 1, 2, 3), IntPoint.newSetQuery("foo", Arrays.asList(1, 2, 3)));
+    assertEquals(FloatPoint.newSetQuery("foo", 1F, 2F, 3F), FloatPoint.newSetQuery("foo", Arrays.asList(1F, 2F, 3F)));
+    assertEquals(LongPoint.newSetQuery("foo", 1L, 2L, 3L), LongPoint.newSetQuery("foo", Arrays.asList(1L, 2L, 3L)));
+    assertEquals(DoublePoint.newSetQuery("foo", 1D, 2D, 3D), DoublePoint.newSetQuery("foo", Arrays.asList(1D, 2D, 3D)));
+  }
 
   public void testBasicMultiValuedPointInSetQuery() throws Exception {
     Directory dir = newDirectory();
@@ -1846,5 +1855,195 @@ public class TestPointQueries extends LuceneTestCase {
 
     // binary
     assertEquals("bytes:{[12] [2a]}", BinaryPoint.newSetQuery("bytes", new byte[] {42}, new byte[] {18}).toString());
+  }
+
+  public void testPointInSetQueryGetPackedPoints() throws Exception {
+    int numValues = randomIntValue(1, 32);
+    List<byte[]> values = new ArrayList<>(numValues);
+    for (byte i = 0; i < numValues; i++) {
+      values.add(new byte[]{i});
+    }
+
+    PointInSetQuery query = (PointInSetQuery) BinaryPoint.newSetQuery("field", values.toArray(new byte[][]{}));
+    Collection<byte[]> packedPoints = query.getPackedPoints();
+    assertEquals(numValues, packedPoints.size());
+    Iterator<byte[]> iterator = packedPoints.iterator();
+    for (byte[] expectedValue : values) {
+      assertArrayEquals(expectedValue, iterator.next());
+    }
+    expectThrows(NoSuchElementException.class, () -> iterator.next());
+    assertFalse(iterator.hasNext());
+  }
+
+  public void testRangeOptimizesIfAllPointsMatch() throws IOException {
+    final int numDims = TestUtil.nextInt(random(), 1, 3);
+    Directory dir = newDirectory();
+    RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+    Document doc = new Document();
+    int[] value = new int[numDims];
+    for (int i = 0; i < numDims; ++i) {
+      value[i] = TestUtil.nextInt(random(), 1, 10);
+    }
+    doc.add(new IntPoint("point", value));
+    w.addDocument(doc);
+    IndexReader reader = w.getReader();
+    IndexSearcher searcher = new IndexSearcher(reader);
+    searcher.setQueryCache(null);
+    int[] lowerBound = new int[numDims];
+    int[] upperBound = new int[numDims];
+    for (int i = 0; i < numDims; ++i) {
+      lowerBound[i] = value[i] - random().nextInt(1);
+      upperBound[i] = value[i] + random().nextInt(1);
+    }
+    Query query = IntPoint.newRangeQuery("point", lowerBound, upperBound);
+    Weight weight = searcher.createNormalizedWeight(query, false);
+    Scorer scorer = weight.scorer(searcher.getIndexReader().leaves().get(0));
+    assertEquals(DocIdSetIterator.all(1).getClass(), scorer.iterator().getClass());
+
+    // When not all documents in the query have a value, the optimization is not applicable
+    reader.close();
+    w.addDocument(new Document());
+    w.forceMerge(1);
+    reader = w.getReader();
+    searcher = new IndexSearcher(reader);
+    searcher.setQueryCache(null);
+    weight = searcher.createNormalizedWeight(query, false);
+    scorer = weight.scorer(searcher.getIndexReader().leaves().get(0));
+    assertFalse(DocIdSetIterator.all(1).getClass().equals(scorer.iterator().getClass()));
+
+    reader.close();
+    w.close();
+    dir.close();
+  }
+
+  public void testPointRangeEquals() {
+    Query q1, q2;
+
+    q1 = IntPoint.newRangeQuery("a", 0, 1000);
+    q2 = IntPoint.newRangeQuery("a", 0, 1000);
+    assertEquals(q1, q2);
+    assertEquals(q1.hashCode(), q2.hashCode());
+    assertFalse(q1.equals(IntPoint.newRangeQuery("a", 1, 1000)));
+    assertFalse(q1.equals(IntPoint.newRangeQuery("b", 0, 1000)));
+
+    q1 = LongPoint.newRangeQuery("a", 0, 1000);
+    q2 = LongPoint.newRangeQuery("a", 0, 1000);
+    assertEquals(q1, q2);
+    assertEquals(q1.hashCode(), q2.hashCode());
+    assertFalse(q1.equals(LongPoint.newRangeQuery("a", 1, 1000)));
+
+    q1 = FloatPoint.newRangeQuery("a", 0, 1000);
+    q2 = FloatPoint.newRangeQuery("a", 0, 1000);
+    assertEquals(q1, q2);
+    assertEquals(q1.hashCode(), q2.hashCode());
+    assertFalse(q1.equals(FloatPoint.newRangeQuery("a", 1, 1000)));
+
+    q1 = DoublePoint.newRangeQuery("a", 0, 1000);
+    q2 = DoublePoint.newRangeQuery("a", 0, 1000);
+    assertEquals(q1, q2);
+    assertEquals(q1.hashCode(), q2.hashCode());
+    assertFalse(q1.equals(DoublePoint.newRangeQuery("a", 1, 1000)));
+
+    byte[] zeros = new byte[5];
+    byte[] ones = new byte[5];
+    Arrays.fill(ones, (byte) 0xff);
+    q1 = BinaryPoint.newRangeQuery("a", new byte[][] {zeros}, new byte[][] {ones});
+    q2 = BinaryPoint.newRangeQuery("a", new byte[][] {zeros}, new byte[][] {ones});
+    assertEquals(q1, q2);
+    assertEquals(q1.hashCode(), q2.hashCode());
+    byte[] other = ones.clone();
+    other[2] = (byte) 5;
+    assertFalse(q1.equals(BinaryPoint.newRangeQuery("a", new byte[][] {zeros}, new byte[][] {other})));
+  }
+
+  public void testPointExactEquals() {
+    Query q1, q2;
+
+    q1 = IntPoint.newExactQuery("a", 1000);
+    q2 = IntPoint.newExactQuery("a", 1000);
+    assertEquals(q1, q2);
+    assertEquals(q1.hashCode(), q2.hashCode());
+    assertFalse(q1.equals(IntPoint.newExactQuery("a", 1)));
+    assertFalse(q1.equals(IntPoint.newExactQuery("b", 1000)));
+
+    q1 = LongPoint.newExactQuery("a", 1000);
+    q2 = LongPoint.newExactQuery("a", 1000);
+    assertEquals(q1, q2);
+    assertEquals(q1.hashCode(), q2.hashCode());
+    assertFalse(q1.equals(LongPoint.newExactQuery("a", 1)));
+
+    q1 = FloatPoint.newExactQuery("a", 1000);
+    q2 = FloatPoint.newExactQuery("a", 1000);
+    assertEquals(q1, q2);
+    assertEquals(q1.hashCode(), q2.hashCode());
+    assertFalse(q1.equals(FloatPoint.newExactQuery("a", 1)));
+
+    q1 = DoublePoint.newExactQuery("a", 1000);
+    q2 = DoublePoint.newExactQuery("a", 1000);
+    assertEquals(q1, q2);
+    assertEquals(q1.hashCode(), q2.hashCode());
+    assertFalse(q1.equals(DoublePoint.newExactQuery("a", 1)));
+
+    byte[] ones = new byte[5];
+    Arrays.fill(ones, (byte) 0xff);
+    q1 = BinaryPoint.newExactQuery("a", ones);
+    q2 = BinaryPoint.newExactQuery("a", ones);
+    assertEquals(q1, q2);
+    assertEquals(q1.hashCode(), q2.hashCode());
+    byte[] other = ones.clone();
+    other[2] = (byte) 5;
+    assertFalse(q1.equals(BinaryPoint.newExactQuery("a", other)));
+  }
+
+  public void testPointInSetEquals() {
+    Query q1, q2;
+    q1 = IntPoint.newSetQuery("a", 0, 1000, 17);
+    q2 = IntPoint.newSetQuery("a", 17, 0, 1000);
+    assertEquals(q1, q2);
+    assertEquals(q1.hashCode(), q2.hashCode());
+    assertFalse(q1.equals(IntPoint.newSetQuery("a", 1, 17, 1000)));
+    assertFalse(q1.equals(IntPoint.newSetQuery("b", 0, 1000, 17)));
+
+    q1 = LongPoint.newSetQuery("a", 0, 1000, 17);
+    q2 = LongPoint.newSetQuery("a", 17, 0, 1000);
+    assertEquals(q1, q2);
+    assertEquals(q1.hashCode(), q2.hashCode());
+    assertFalse(q1.equals(LongPoint.newSetQuery("a", 1, 17, 1000)));
+
+    q1 = FloatPoint.newSetQuery("a", 0, 1000, 17);
+    q2 = FloatPoint.newSetQuery("a", 17, 0, 1000);
+    assertEquals(q1, q2);
+    assertEquals(q1.hashCode(), q2.hashCode());
+    assertFalse(q1.equals(FloatPoint.newSetQuery("a", 1, 17, 1000)));
+
+    q1 = DoublePoint.newSetQuery("a", 0, 1000, 17);
+    q2 = DoublePoint.newSetQuery("a", 17, 0, 1000);
+    assertEquals(q1, q2);
+    assertEquals(q1.hashCode(), q2.hashCode());
+    assertFalse(q1.equals(DoublePoint.newSetQuery("a", 1, 17, 1000)));
+
+    byte[] zeros = new byte[5];
+    byte[] ones = new byte[5];
+    Arrays.fill(ones, (byte) 0xff);
+    q1 = BinaryPoint.newSetQuery("a", new byte[][] {zeros, ones});
+    q2 = BinaryPoint.newSetQuery("a", new byte[][] {zeros, ones});
+    assertEquals(q1, q2);
+    assertEquals(q1.hashCode(), q2.hashCode());
+    byte[] other = ones.clone();
+    other[2] = (byte) 5;
+    assertFalse(q1.equals(BinaryPoint.newSetQuery("a", new byte[][] {zeros, other})));
+  }
+
+  public void testInvalidPointLength() {
+    IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                                              () -> {
+                                                new PointRangeQuery("field", new byte[4], new byte[8], 1) {
+                                                  @Override
+                                                  protected String toString(int dimension, byte[] value) {
+                                                    return "foo";
+                                                  }
+                                                };
+                                              });
+    assertEquals("lowerPoint has length=4 but upperPoint has different length=8", e.getMessage());
   }
 }

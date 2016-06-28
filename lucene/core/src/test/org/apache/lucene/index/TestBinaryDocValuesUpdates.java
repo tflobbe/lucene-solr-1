@@ -36,13 +36,11 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.NRTCachingDirectory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.LuceneTestCase.Nightly;
 import org.apache.lucene.util.TestUtil;
 import org.junit.Test;
 
@@ -253,16 +251,14 @@ public class TestBinaryDocValuesUpdates extends LuceneTestCase {
       writer.close();
     }
     
-    LeafReader slow = SlowCompositeReaderWrapper.wrap(reader);
-    
-    Bits liveDocs = slow.getLiveDocs();
+    Bits liveDocs = MultiFields.getLiveDocs(reader);
     boolean[] expectedLiveDocs = new boolean[] { true, false, false, true, true, true };
     for (int i = 0; i < expectedLiveDocs.length; i++) {
       assertEquals(expectedLiveDocs[i], liveDocs.get(i));
     }
     
     long[] expectedValues = new long[] { 1, 2, 3, 17, 5, 17};
-    BinaryDocValues bdv = slow.getBinaryDocValues("val");
+    BinaryDocValues bdv = MultiDocValues.getBinaryValues(reader, "val");
     for (int i = 0; i < expectedValues.length; i++) {
       assertEquals(expectedValues[i], getValue(bdv, i));
     }
@@ -469,10 +465,9 @@ public class TestBinaryDocValuesUpdates extends LuceneTestCase {
     
     final DirectoryReader reader = DirectoryReader.open(dir);
     
-    LeafReader r = SlowCompositeReaderWrapper.wrap(reader);
-    BinaryDocValues bdv = r.getBinaryDocValues("bdv");
-    SortedDocValues sdv = r.getSortedDocValues("sorted");
-    for (int i = 0; i < r.maxDoc(); i++) {
+    BinaryDocValues bdv = MultiDocValues.getBinaryValues(reader, "bdv");
+    SortedDocValues sdv = MultiDocValues.getSortedValues(reader, "sorted");
+    for (int i = 0; i < reader.maxDoc(); i++) {
       assertEquals(17, getValue(bdv, i));
       BytesRef term = sdv.get(i);
       assertEquals(new BytesRef("value"), term);
@@ -499,9 +494,8 @@ public class TestBinaryDocValuesUpdates extends LuceneTestCase {
     writer.close();
     
     final DirectoryReader reader = DirectoryReader.open(dir);
-    final LeafReader r = SlowCompositeReaderWrapper.wrap(reader);
-    BinaryDocValues bdv = r.getBinaryDocValues("bdv");
-    for (int i = 0; i < r.maxDoc(); i++) {
+    BinaryDocValues bdv = MultiDocValues.getBinaryValues(reader, "bdv");
+    for (int i = 0; i < reader.maxDoc(); i++) {
       assertEquals(3, getValue(bdv, i));
     }
     reader.close();
@@ -598,9 +592,8 @@ public class TestBinaryDocValuesUpdates extends LuceneTestCase {
     writer.close();
     
     final DirectoryReader reader = DirectoryReader.open(dir);
-    final LeafReader r = SlowCompositeReaderWrapper.wrap(reader);
-    BinaryDocValues bdv = r.getBinaryDocValues("bdv");
-    for (int i = 0; i < r.maxDoc(); i++) {
+    BinaryDocValues bdv = MultiDocValues.getBinaryValues(reader, "bdv");
+    for (int i = 0; i < reader.maxDoc(); i++) {
       assertEquals(3, getValue(bdv, i));
     }
     reader.close();
@@ -1018,9 +1011,8 @@ public class TestBinaryDocValuesUpdates extends LuceneTestCase {
     writer.close();
     
     DirectoryReader reader = DirectoryReader.open(dir);
-    LeafReader r = SlowCompositeReaderWrapper.wrap(reader);
-    BinaryDocValues f1 = r.getBinaryDocValues("f1");
-    BinaryDocValues f2 = r.getBinaryDocValues("f2");
+    BinaryDocValues f1 = MultiDocValues.getBinaryValues(reader, "f1");
+    BinaryDocValues f2 = MultiDocValues.getBinaryValues(reader, "f2");
     assertEquals(12L, getValue(f1, 0));
     assertEquals(13L, getValue(f2, 0));
     assertEquals(17L, getValue(f1, 1));

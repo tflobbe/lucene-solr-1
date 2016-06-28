@@ -72,7 +72,7 @@ public class MigrateRouteKeyTest extends BasicDistributedZkTest {
     boolean ruleRemoved = false;
     long expiryTime = finishTime + TimeUnit.NANOSECONDS.convert(60, TimeUnit.SECONDS);
     while (System.nanoTime() < expiryTime) {
-      getCommonCloudSolrClient().getZkStateReader().updateClusterState();
+      getCommonCloudSolrClient().getZkStateReader().forceUpdateCollection(AbstractDistribZkTestBase.DEFAULT_COLLECTION);
       state = getCommonCloudSolrClient().getZkStateReader().getClusterState();
       slice = state.getSlice(AbstractDistribZkTestBase.DEFAULT_COLLECTION, SHARD2);
       Map<String,RoutingRule> routingRules = slice.getRoutingRules();
@@ -106,7 +106,7 @@ public class MigrateRouteKeyTest extends BasicDistributedZkTest {
         .getBaseURL();
     baseUrl = baseUrl.substring(0, baseUrl.length() - "collection1".length());
 
-    try (HttpSolrClient baseClient = new HttpSolrClient(baseUrl)) {
+    try (HttpSolrClient baseClient = getHttpSolrClient(baseUrl)) {
       baseClient.setConnectionTimeout(15000);
       baseClient.setSoTimeout(60000 * 5);
       baseClient.request(request);
@@ -161,7 +161,7 @@ public class MigrateRouteKeyTest extends BasicDistributedZkTest {
 
     String url = getUrlFromZk(getCommonCloudSolrClient().getZkStateReader().getClusterState(), targetCollection);
 
-    try (HttpSolrClient collectionClient = new HttpSolrClient(url)) {
+    try (HttpSolrClient collectionClient = getHttpSolrClient(url)) {
 
       SolrQuery solrQuery = new SolrQuery("*:*");
       assertEquals("DocCount on target collection does not match", 0, collectionClient.query(solrQuery).getResults().getNumFound());
@@ -186,7 +186,7 @@ public class MigrateRouteKeyTest extends BasicDistributedZkTest {
       log.info("Response from target collection: " + response);
       assertEquals("DocCount on target collection does not match", splitKeyCount[0], response.getResults().getNumFound());
 
-      getCommonCloudSolrClient().getZkStateReader().updateClusterState();
+      getCommonCloudSolrClient().getZkStateReader().forceUpdateCollection(AbstractDistribZkTestBase.DEFAULT_COLLECTION);
       ClusterState state = getCommonCloudSolrClient().getZkStateReader().getClusterState();
       Slice slice = state.getSlice(AbstractDistribZkTestBase.DEFAULT_COLLECTION, SHARD2);
       assertNotNull("Routing rule map is null", slice.getRoutingRules());

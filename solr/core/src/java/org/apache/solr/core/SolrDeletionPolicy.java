@@ -15,22 +15,21 @@
  * limitations under the License.
  */
 package org.apache.solr.core;
+
+import java.io.File;
+import java.io.IOException;
+import java.lang.invoke.MethodHandles;
+import java.util.List;
+
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.solr.common.util.NamedList;
 import org.apache.solr.util.DateMathParser;
-import org.apache.solr.util.DateFormatUtil;
 import org.apache.solr.util.plugin.NamedListInitializedPlugin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.File;
-import java.io.IOException;
-import java.lang.invoke.MethodHandles;
-import java.util.List;
-import java.util.Locale;
 
 
 /**
@@ -174,7 +173,7 @@ public class SolrDeletionPolicy extends IndexDeletionPolicy implements NamedList
         try {
           if (maxCommitAge != null) {
             if (maxCommitAgeTimeStamp==-1) {
-              DateMathParser dmp = new DateMathParser(DateFormatUtil.UTC, Locale.ROOT);
+              DateMathParser dmp = new DateMathParser(DateMathParser.UTC);
               maxCommitAgeTimeStamp = dmp.parseMath(maxCommitAge).getTime();
             }
             if (IndexDeletionPolicyWrapper.getCommitTimestamp(commit) < maxCommitAgeTimeStamp) {

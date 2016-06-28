@@ -39,7 +39,6 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.solr.cloud.CloudDescriptor;
 import org.apache.solr.cloud.SyncStrategy;
 import org.apache.solr.cloud.ZkController;
-import org.apache.solr.common.NonExistentCoreException;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.common.cloud.ClusterState;
 import org.apache.solr.common.cloud.DocCollection;
@@ -60,6 +59,9 @@ import org.apache.solr.core.CoreDescriptor;
 import org.apache.solr.core.DirectoryFactory;
 import org.apache.solr.core.SolrCore;
 import org.apache.solr.core.SolrResourceLoader;
+import org.apache.solr.core.backup.repository.BackupRepository;
+import org.apache.solr.handler.RestoreCore;
+import org.apache.solr.handler.SnapShooter;
 import org.apache.solr.request.LocalSolrQueryRequest;
 import org.apache.solr.request.SolrQueryRequest;
 import org.apache.solr.search.SolrIndexSearcher;
@@ -80,24 +82,7 @@ import org.slf4j.LoggerFactory;
 import static org.apache.solr.common.cloud.DocCollection.DOC_ROUTER;
 import static org.apache.solr.common.params.CommonParams.NAME;
 import static org.apache.solr.common.params.CommonParams.PATH;
-import static org.apache.solr.common.params.CoreAdminParams.CoreAdminAction.CREATE;
-import static org.apache.solr.common.params.CoreAdminParams.CoreAdminAction.FORCEPREPAREFORLEADERSHIP;
-import static org.apache.solr.common.params.CoreAdminParams.CoreAdminAction.INVOKE;
-import static org.apache.solr.common.params.CoreAdminParams.CoreAdminAction.MERGEINDEXES;
-import static org.apache.solr.common.params.CoreAdminParams.CoreAdminAction.OVERSEEROP;
-import static org.apache.solr.common.params.CoreAdminParams.CoreAdminAction.PREPRECOVERY;
-import static org.apache.solr.common.params.CoreAdminParams.CoreAdminAction.REJOINLEADERELECTION;
-import static org.apache.solr.common.params.CoreAdminParams.CoreAdminAction.RELOAD;
-import static org.apache.solr.common.params.CoreAdminParams.CoreAdminAction.RENAME;
-import static org.apache.solr.common.params.CoreAdminParams.CoreAdminAction.REQUESTAPPLYUPDATES;
-import static org.apache.solr.common.params.CoreAdminParams.CoreAdminAction.REQUESTBUFFERUPDATES;
-import static org.apache.solr.common.params.CoreAdminParams.CoreAdminAction.REQUESTRECOVERY;
-import static org.apache.solr.common.params.CoreAdminParams.CoreAdminAction.REQUESTSTATUS;
-import static org.apache.solr.common.params.CoreAdminParams.CoreAdminAction.REQUESTSYNCSHARD;
-import static org.apache.solr.common.params.CoreAdminParams.CoreAdminAction.SPLIT;
-import static org.apache.solr.common.params.CoreAdminParams.CoreAdminAction.STATUS;
-import static org.apache.solr.common.params.CoreAdminParams.CoreAdminAction.SWAP;
-import static org.apache.solr.common.params.CoreAdminParams.CoreAdminAction.UNLOAD;
+import static org.apache.solr.common.params.CoreAdminParams.CoreAdminAction.*;
 import static org.apache.solr.handler.admin.CoreAdminHandler.COMPLETED;
 import static org.apache.solr.handler.admin.CoreAdminHandler.CallInfo;
 import static org.apache.solr.handler.admin.CoreAdminHandler.FAILED;
@@ -369,7 +354,7 @@ enum CoreAdminOperation {
           String collectionName = req.getCore().getCoreDescriptor().getCloudDescriptor().getCollectionName();
           DocCollection collection = clusterState.getCollection(collectionName);
           String sliceName = req.getCore().getCoreDescriptor().getCloudDescriptor().getShardId();
-          Slice slice = clusterState.getSlice(collectionName, sliceName);
+          Slice slice = collection.getSlice(sliceName);
           router = collection.getRouter() != null ? collection.getRouter() : DocRouter.DEFAULT;
           if (ranges == null) {
             DocRouter.Range currentRange = slice.getRange();
@@ -461,6 +446,7 @@ enum CoreAdminOperation {
             // to accept updates
             CloudDescriptor cloudDescriptor = core.getCoreDescriptor()
                 .getCloudDescriptor();
+            String collectionName = cloudDescriptor.getCollectionName();
 
             if (retry % 15 == 0) {
               if (retry > 0 && log.isInfoEnabled())
@@ -470,7 +456,7 @@ enum CoreAdminOperation {
                     waitForState + "; forcing ClusterState update from ZooKeeper");
 
               // force a cluster state update
-              coreContainer.getZkController().getZkStateReader().updateClusterState();
+              coreContainer.getZkController().getZkStateReader().forceUpdateCollection(collectionName);
             }
 
             if (maxTries == 0) {
@@ -483,8 +469,8 @@ enum CoreAdminOperation {
             }
 
             ClusterState clusterState = coreContainer.getZkController().getClusterState();
-            String collection = cloudDescriptor.getCollectionName();
-            Slice slice = clusterState.getSlice(collection, cloudDescriptor.getShardId());
+            DocCollection collection = clusterState.getCollection(collectionName);
+            Slice slice = collection.getSlice(cloudDescriptor.getShardId());
             if (slice != null) {
               final Replica replica = slice.getReplicasMap().get(coreNodeName);
               if (replica != null) {
@@ -508,7 +494,7 @@ enum CoreAdminOperation {
                 }
 
                 boolean onlyIfActiveCheckResult = onlyIfLeaderActive != null && onlyIfLeaderActive && localState != Replica.State.ACTIVE;
-                log.info("In WaitForState(" + waitForState + "): collection=" + collection + ", shard=" + slice.getName() +
+                log.info("In WaitForState(" + waitForState + "): collection=" + collectionName + ", shard=" + slice.getName() +
                     ", thisCore=" + core.getName() + ", leaderDoesNotNeedRecovery=" + leaderDoesNotNeedRecovery +
                     ", isLeader? " + core.getCoreDescriptor().getCloudDescriptor().isLeader() +
                     ", live=" + live + ", checkLive=" + checkLive + ", currentState=" + state.toString() + ", localState=" + localState + ", nodeName=" + nodeName +
@@ -852,6 +838,105 @@ enum CoreAdminOperation {
       }
 
     }
+  },
+  BACKUPCORE_OP(BACKUPCORE) {
+    @Override
+    public void call(CallInfo callInfo) throws IOException {
+      ZkController zkController = callInfo.handler.coreContainer.getZkController();
+      if (zkController == null) {
+        throw new SolrException(SolrException.ErrorCode.BAD_REQUEST, "Internal SolrCloud API");
+      }
+
+      final SolrParams params = callInfo.req.getParams();
+      String cname = params.get(CoreAdminParams.CORE);
+      if (cname == null) {
+        throw new IllegalArgumentException(CoreAdminParams.CORE + " is required");
+      }
+
+      String name = params.get(NAME);
+      if (name == null) {
+        throw new IllegalArgumentException(CoreAdminParams.NAME + " is required");
+      }
+
+      SolrResourceLoader loader = callInfo.handler.coreContainer.getResourceLoader();
+      BackupRepository repository;
+      String repoName = params.get(BackupRepository.REPOSITORY_PROPERTY_NAME);
+      if(repoName != null) {
+        repository = callInfo.handler.coreContainer.getBackupRepoFactory().newInstance(loader, repoName);
+      } else { // Fetch the default.
+        repository = callInfo.handler.coreContainer.getBackupRepoFactory().newInstance(loader);
+      }
+
+      String location = params.get(ZkStateReader.BACKUP_LOCATION);
+      if (location == null) {
+        location = repository.getConfigProperty(ZkStateReader.BACKUP_LOCATION);
+        if (location == null) {
+          throw new IllegalArgumentException("location is required");
+        }
+      }
+
+      try (SolrCore core = callInfo.handler.coreContainer.getCore(cname)) {
+        SnapShooter snapShooter = new SnapShooter(repository, core, location, name);
+        // validateCreateSnapshot will create parent dirs instead of throw; that choice is dubious.
+        //  But we want to throw. One reason is that
+        //  this dir really should, in fact must, already exist here if triggered via a collection backup on a shared
+        //  file system. Otherwise, perhaps the FS location isn't shared -- we want an error.
+        if (!snapShooter.getBackupRepository().exists(snapShooter.getLocation())) {
+          throw new SolrException(SolrException.ErrorCode.BAD_REQUEST,
+              "Directory to contain snapshots doesn't exist: " + snapShooter.getLocation());
+        }
+        snapShooter.validateCreateSnapshot();
+        snapShooter.createSnapshot();
+      } catch (Exception e) {
+        throw new SolrException(SolrException.ErrorCode.SERVER_ERROR,
+            "Failed to backup core=" + cname + " because " + e, e);
+      }
+    }
+  },
+  RESTORECORE_OP(RESTORECORE) {
+    @Override
+    public void call(CallInfo callInfo) throws Exception {
+      ZkController zkController = callInfo.handler.coreContainer.getZkController();
+      if (zkController == null) {
+        throw new SolrException(SolrException.ErrorCode.BAD_REQUEST, "Only valid for SolrCloud");
+      }
+
+      final SolrParams params = callInfo.req.getParams();
+      String cname = params.get(CoreAdminParams.CORE);
+      if (cname == null) {
+        throw new IllegalArgumentException(CoreAdminParams.CORE + " is required");
+      }
+
+      String name = params.get(NAME);
+      if (name == null) {
+        throw new IllegalArgumentException(CoreAdminParams.NAME + " is required");
+      }
+
+      SolrResourceLoader loader = callInfo.handler.coreContainer.getResourceLoader();
+      BackupRepository repository;
+      String repoName = params.get(BackupRepository.REPOSITORY_PROPERTY_NAME);
+      if(repoName != null) {
+        repository = callInfo.handler.coreContainer.getBackupRepoFactory().newInstance(loader, repoName);
+      } else { // Fetch the default.
+        repository = callInfo.handler.coreContainer.getBackupRepoFactory().newInstance(loader);
+      }
+
+      String location = params.get(ZkStateReader.BACKUP_LOCATION);
+      if (location == null) {
+        location = repository.getConfigProperty(ZkStateReader.BACKUP_LOCATION);
+        if (location == null) {
+          throw new IllegalArgumentException("location is required");
+        }
+      }
+
+      try (SolrCore core = callInfo.handler.coreContainer.getCore(cname)) {
+        RestoreCore restoreCore = new RestoreCore(repository, core, location, name);
+        boolean success = restoreCore.doRestore();
+        if (!success) {
+          throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "Failed to restore core=" + core.getName());
+        }
+      }
+    }
   };
   private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
@@ -927,7 +1012,7 @@ enum CoreAdminOperation {
       dir = core.getDirectoryFactory().get(core.getIndexDir(), DirectoryFactory.DirContext.DEFAULT, core.getSolrConfig().indexConfig.lockType);
 
       try {
-        size = DirectoryFactory.sizeOfDirectory(dir);
+        size = core.getDirectoryFactory().size(dir);
       } finally {
         core.getDirectoryFactory().release(dir);
       }

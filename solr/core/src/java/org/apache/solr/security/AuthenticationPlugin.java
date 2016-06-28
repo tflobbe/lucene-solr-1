@@ -22,15 +22,12 @@ import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletRequestWrapper;
-import javax.servlet.http.HttpServletResponse;
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.file.attribute.UserPrincipal;
 import java.security.Principal;
 import java.util.Map;
 
 import org.apache.http.auth.BasicUserPrincipal;
-import org.apache.solr.client.solrj.impl.HttpClientConfigurer;
 
 /**
  * 
@@ -68,8 +65,7 @@ public abstract class AuthenticationPlugin implements Closeable {
    * @param request the http request
    * @param response the http response
    * @param filterChain the servlet filter chain
-   * @throws Exception any exception thrown during the authentication, e.g. 
-   * PriviledgedAccessException
+   * @throws Exception any exception thrown during the authentication, e.g. PrivilegedActionException
    */
   public abstract void doAuthenticate(ServletRequest request, ServletResponse response,
       FilterChain filterChain) throws Exception;

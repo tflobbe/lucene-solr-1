@@ -16,15 +16,12 @@
  */
 package org.apache.lucene.queryparser.flexible.standard.processors;
 
-import java.util.Locale;
-
 import org.apache.lucene.queryparser.flexible.core.config.QueryConfigHandler;
 import org.apache.lucene.queryparser.flexible.core.processors.NoChildOptimizationQueryNodeProcessor;
 import org.apache.lucene.queryparser.flexible.core.processors.QueryNodeProcessorPipeline;
 import org.apache.lucene.queryparser.flexible.core.processors.RemoveDeletedQueryNodesProcessor;
 import org.apache.lucene.queryparser.flexible.standard.builders.StandardQueryTreeBuilder;
 import org.apache.lucene.queryparser.flexible.standard.config.StandardQueryConfigHandler;
-import org.apache.lucene.queryparser.flexible.standard.config.StandardQueryConfigHandler.ConfigurationKeys;
 import org.apache.lucene.queryparser.flexible.standard.parser.StandardSyntaxParser;
 import org.apache.lucene.search.Query;
 
@@ -55,8 +52,10 @@ public class StandardQueryNodeProcessorPipeline extends
     add(new FuzzyQueryNodeProcessor());
     add(new MatchAllDocsQueryNodeProcessor());
     add(new OpenRangeQueryNodeProcessor());
-    add(new NumericQueryNodeProcessor());
-    add(new NumericRangeQueryNodeProcessor());
+    add(new LegacyNumericQueryNodeProcessor());
+    add(new LegacyNumericRangeQueryNodeProcessor());
+    add(new PointQueryNodeProcessor());
+    add(new PointRangeQueryNodeProcessor());
     add(new LowercaseExpandedTermsQueryNodeProcessor());
     add(new TermRangeQueryNodeProcessor());
     add(new AllowLeadingWildcardProcessor());    

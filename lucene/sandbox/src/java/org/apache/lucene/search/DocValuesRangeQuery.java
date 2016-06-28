@@ -78,22 +78,22 @@ public final class DocValuesRangeQuery extends Query {
   }
 
   @Override
-  public boolean equals(Object obj) {
-    if (super.equals(obj) == false) {
-      return false;
-    }
-    final DocValuesRangeQuery that = (DocValuesRangeQuery) obj;
-    return field.equals(that.field)
-        && Objects.equals(lowerVal, that.lowerVal)
-        && Objects.equals(upperVal, that.upperVal)
-        && includeLower == that.includeLower
-        && includeUpper == that.includeUpper
-        && super.equals(obj);
+  public boolean equals(Object other) {
+    return sameClassAs(other) &&
+           equalsTo(getClass().cast(other));
+  }
+
+  private boolean equalsTo(DocValuesRangeQuery other) {
+    return field.equals(other.field) && 
+           Objects.equals(lowerVal, other.lowerVal) && 
+           Objects.equals(upperVal, other.upperVal) && 
+           includeLower == other.includeLower && 
+           includeUpper == other.includeUpper;
   }
 
   @Override
   public int hashCode() {
-    return 31 * super.hashCode() + Objects.hash(field, lowerVal, upperVal, includeLower, includeUpper);
+    return 31 * classHash() + Objects.hash(field, lowerVal, upperVal, includeLower, includeUpper);
   }
 
   public String getField() {
@@ -141,7 +141,7 @@ public final class DocValuesRangeQuery extends Query {
   @Override
   public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
     if (lowerVal == null && upperVal == null) {
-      throw new IllegalStateException("Both min and max values cannot be null, call rewrite first");
+      throw new IllegalStateException("Both min and max values must not be null, call rewrite first");
     }
     return new RandomAccessWeight(DocValuesRangeQuery.this) {
       
@@ -157,6 +157,9 @@ public final class DocValuesRangeQuery extends Query {
           } else if (includeLower) {
             min = (long) lowerVal;
           } else {
+            if ((long) lowerVal == Long.MAX_VALUE) {
+              return null;
+            }
             min = 1 + (long) lowerVal;
           }
 
@@ -166,6 +169,9 @@ public final class DocValuesRangeQuery extends Query {
           } else if (includeUpper) {
             max = (long) upperVal;
           } else {
+            if ((long) upperVal == Long.MIN_VALUE) {
+              return null;
+            }
             max = -1 + (long) upperVal;
           }
 
