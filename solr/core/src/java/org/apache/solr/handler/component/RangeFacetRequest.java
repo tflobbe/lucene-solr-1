@@ -34,6 +34,7 @@ import org.apache.solr.common.util.SimpleOrderedMap;
 import org.apache.solr.schema.DateRangeField;
 import org.apache.solr.schema.FieldType;
 import org.apache.solr.schema.IndexSchema;
+import org.apache.solr.schema.PointField;
 import org.apache.solr.schema.SchemaField;
 import org.apache.solr.schema.TrieDateField;
 import org.apache.solr.schema.TrieField;
@@ -163,6 +164,29 @@ public class RangeFacetRequest extends FacetComponent.FacetBase {
       }
     } else if (ft instanceof DateRangeField) {
       calc = new DateRangeEndpointCalculator(this, null);
+    }if (ft instanceof PointField) {
+      final PointField trie = (PointField) ft;
+      switch (trie.getType()) {
+        case FLOAT:
+          calc = new FloatRangeEndpointCalculator(this);
+          break;
+        case DOUBLE:
+          calc = new DoubleRangeEndpointCalculator(this);
+          break;
+        case INTEGER:
+          calc = new IntegerRangeEndpointCalculator(this);
+          break;
+        case LONG:
+          calc = new LongRangeEndpointCalculator(this);
+          break;
+        case DATE:
+          calc = new DateRangeEndpointCalculator(this, null);
+          break;
+        default:
+          throw new SolrException
+              (SolrException.ErrorCode.BAD_REQUEST,
+                  "Unable to range facet on tried field of unexpected type:" + this.facetOn);
+      }
     } else {
       throw new SolrException
           (SolrException.ErrorCode.BAD_REQUEST,

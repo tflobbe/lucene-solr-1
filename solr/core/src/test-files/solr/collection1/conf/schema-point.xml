@@ -81,6 +81,7 @@
 
  <fields>
    <field name="id" type="string"/>
+   <field name="text" type="string"/>
    <field name="_version_" type="long" indexed="true" stored="true" multiValued="false" />
    <field name="signatureField" type="string" indexed="true" stored="false"/>
    <dynamicField name="*_s"  type="string"  indexed="true"  stored="true"/>
@@ -92,6 +93,7 @@
    <dynamicField name="*_dt"  type="date" indexed="true"  stored="true"/>
    
    <dynamicField name="*_p_i"  type="pint"    indexed="true"  stored="true"/>
+   <dynamicField name="*_p_i_dv"  type="pint"    indexed="true"  stored="true" docValues="true"/>
    <!--  dynamicField name="*_l"  type="plong"   indexed="true"  stored="true"/>
    <dynamicField name="*_f"  type="pfloat"  indexed="true"  stored="true"/>
    <dynamicField name="*_d"  type="pdouble" indexed="true"  stored="true"/>

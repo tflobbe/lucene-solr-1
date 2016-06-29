@@ -20,14 +20,13 @@ package org.apache.solr.schema;
 import java.io.IOException;
 import java.util.Map;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.FunctionValues;
+import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.docvalues.IntDocValues;
 import org.apache.lucene.queries.function.valuesource.SortedSetFieldSource;
 import org.apache.lucene.search.Query;
@@ -39,7 +38,6 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.LegacyNumericUtils;
 import org.apache.lucene.util.mutable.MutableValue;
 import org.apache.lucene.util.mutable.MutableValueInt;
-import org.apache.solr.response.TextResponseWriter;
 import org.apache.solr.search.QParser;
 
 /**
@@ -147,8 +145,8 @@ public class IntPointField extends PointField implements IntValueFieldType {
   }
   
   @Override
-  public String toInternal(String val) {
-    return readableToIndexed(val);
+  public Object toObject(SchemaField sf, BytesRef term) {
+    return IntPoint.decodeDimension(term.bytes, 0);
   }
 
   @Override

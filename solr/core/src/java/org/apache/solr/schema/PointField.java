@@ -27,7 +27,6 @@ import java.util.Map;
 
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.FieldType.LegacyNumericType;
 import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
@@ -43,17 +42,15 @@ import org.apache.lucene.queries.function.valuesource.LongFieldSource;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedSetSelector;
-import org.apache.lucene.uninverting.UninvertingReader.Type;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.CharsRef;
-import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.LegacyNumericUtils;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.response.TextResponseWriter;
 import org.apache.solr.search.QParser;
-import org.apache.solr.util.DateFormatUtil;
+import org.apache.solr.uninverting.UninvertingReader.Type;
+import org.apache.solr.util.DateMathParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -175,14 +172,14 @@ public abstract class PointField extends PrimitiveFieldType {
     } else {
       switch (type) {
         case INTEGER:
-          return Type.INTEGER;
+          return Type.INTEGER_POINT;
         case LONG:
         case DATE:
-          return Type.LONG;
+          return Type.LONG_POINT;
         case FLOAT:
-          return Type.FLOAT;
+          return Type.FLOAT_POINT;
         case DOUBLE:
-          return Type.DOUBLE;
+          return Type.DOUBLE_POINT;
         default:
           throw new AssertionError();
       }
@@ -380,18 +377,6 @@ public abstract class PointField extends PrimitiveFieldType {
 
   protected abstract Query getExactQuery(QParser parser, SchemaField field, String externalVal);
 
-  @Deprecated
-  static int toInt(byte[] arr, int offset) {
-    return (arr[offset]<<24) | ((arr[offset+1]&0xff)<<16) | ((arr[offset+2]&0xff)<<8) | (arr[offset+3]&0xff);
-  }
-  
-  @Deprecated
-  static long toLong(byte[] arr, int offset) {
-    int high = (arr[offset]<<24) | ((arr[offset+1]&0xff)<<16) | ((arr[offset+2]&0xff)<<8) | (arr[offset+3]&0xff);
-    int low = (arr[offset+4]<<24) | ((arr[offset+5]&0xff)<<16) | ((arr[offset+6]&0xff)<<8) | (arr[offset+7]&0xff);
-    return (((long)high)<<32) | (low&0x0ffffffffL);
-  }
-
   @Override
   public String storedToReadable(IndexableField f) {
     return toExternal(f);
@@ -399,7 +384,15 @@ public abstract class PointField extends PrimitiveFieldType {
 
   @Override
   public String toInternal(String val) {
-    return readableToIndexed(val);
+    return toInternalByteRef(val).utf8ToString();
+  }
+  
+  public BytesRef toInternalByteRef(String val) {
+    final BytesRefBuilder bytes = new BytesRefBuilder();
+    bytes.grow(Integer.BYTES);
+    bytes.setLength(Integer.BYTES);
+    readableToIndexed(val, bytes);
+    return bytes.get();
   }
   
   @Override
@@ -421,20 +414,7 @@ public abstract class PointField extends PrimitiveFieldType {
 
   @Override
   public Object toObject(SchemaField sf, BytesRef term) {
-    switch (type) {
-      case INTEGER:
-        return LegacyNumericUtils.prefixCodedToInt(term);
-      case FLOAT:
-        return NumericUtils.sortableIntToFloat(LegacyNumericUtils.prefixCodedToInt(term));
-      case LONG:
-        return LegacyNumericUtils.prefixCodedToLong(term);
-      case DOUBLE:
-        return NumericUtils.sortableLongToDouble(LegacyNumericUtils.prefixCodedToLong(term));
-      case DATE:
-        return new Date(LegacyNumericUtils.prefixCodedToLong(term));
-      default:
-        throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "Unknown type for trie field: " + type);
-    }
+    throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "Unknown type for trie field: " + type);
   }
 
   @Override
@@ -538,7 +518,7 @@ public abstract class PointField extends PrimitiveFieldType {
       case DATE:
         Date date = (value instanceof Date)
           ? ((Date)value)
-          : DateFormatUtil.parseMath(null, value.toString());
+          : DateMathParser.parseMath(null, value.toString());
         f = new LongPoint(field.getName(), date.getTime()); //new LegacyLongField(field.getName(), date.getTime(), ft);
         break;
       default:

@@ -34,6 +34,7 @@ import org.apache.solr.request.SimpleFacets;
 import org.apache.solr.request.SolrQueryRequest;
 import org.apache.solr.schema.FieldType;
 import org.apache.solr.schema.IndexSchema;
+import org.apache.solr.schema.PointField;
 import org.apache.solr.schema.SchemaField;
 import org.apache.solr.schema.TrieField;
 import org.apache.solr.search.DocSet;
@@ -55,7 +56,6 @@ public class RangeFacetProcessor extends SimpleFacets {
    *
    * @see org.apache.solr.common.params.FacetParams#FACET_RANGE
    */
-  @SuppressWarnings("unchecked")
   public NamedList<Object> getFacetRangeCounts() throws IOException, SyntaxError {
     final NamedList<Object> resOuter = new SimpleOrderedMap<>();
 
@@ -92,7 +92,7 @@ public class RangeFacetProcessor extends SimpleFacets {
     final FieldType ft = sf.getType();
 
     if (method.equals(FacetRangeMethod.DV)) {
-      assert ft instanceof TrieField;
+      assert ft instanceof TrieField || ft instanceof PointField; //nocommit: Can we validate DV here?
       resOuter.add(key, getFacetRangeCountsDocValues(rangeFacetRequest));
     } else {
       resOuter.add(key, getFacetRangeCounts(rangeFacetRequest));
