@@ -81,6 +81,10 @@ public abstract class PointField extends PrimitiveFieldType {
       }
     }
   }
+  
+  public boolean isPointField() {
+    return true;
+  }
 
 //  @Override
 //  public Object toObject(IndexableField f) {
@@ -405,13 +409,6 @@ public abstract class PointField extends PrimitiveFieldType {
     return "ERROR:SCHEMA-INDEX-MISMATCH,stringValue="+s;
   }
 
-//  @Override
-//  public String toExternal(IndexableField f) {
-//    return (type == PointTypes.DATE)
-//      ? DateFormatUtil.formatExternal((Date) toObject(f))
-//      : toObject(f).toString();
-//  }
-
   @Override
   public Object toObject(SchemaField sf, BytesRef term) {
     throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "Unknown type for trie field: " + type);
@@ -461,33 +458,6 @@ public abstract class PointField extends PrimitiveFieldType {
         log.trace("Ignoring unindexed/unstored field: " + field);
       return null;
     }
-    
-    /*FieldType ft = new FieldType();
-    ft.setStored(stored);
-    ft.setTokenized(true);
-    ft.setOmitNorms(field.omitNorms());
-    ft.setIndexOptions(indexed ? getIndexOptions(field, value.toString()) : IndexOptions.NONE);*/
-
-    /*switch (type) {
-      case INTEGER:
-        ft.setNumericType(FieldType.LegacyNumericType.INT);
-        break;
-      case FLOAT:
-        ft.setNumericType(FieldType.LegacyNumericType.FLOAT);
-        break;
-      case LONG:
-        ft.setNumericType(FieldType.LegacyNumericType.LONG);
-        break;
-      case DOUBLE:
-        ft.setNumericType(FieldType.LegacyNumericType.DOUBLE);
-        break;
-      case DATE:
-        ft.setNumericType(FieldType.LegacyNumericType.LONG);
-        break;
-      default:
-        throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "Unknown type for trie field: " + type);
-    }*/
-
     final org.apache.lucene.document.Field f;
 
     switch (type) {
@@ -525,7 +495,9 @@ public abstract class PointField extends PrimitiveFieldType {
         throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "Unknown type for point field: " + type);
     }
 
-    f.setBoost(boost);
+    if (boost != 1.0) {
+      throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "Can't use document/field boost for PointField. Field: " + field.getName() + ", boost: " + boost);
+    }
     return f;
   }
 
@@ -558,7 +530,7 @@ public abstract class PointField extends PrimitiveFieldType {
     }
     if (sf.stored()) {
       //TODO: Can value be something other than a String?
-      fields.add(new StoredField(sf.getName(), Integer.parseInt((String)value)));
+      fields.add(new StoredField(sf.getName(), (Integer)this.toNativeType(value)));
     }
     return fields;
   }
@@ -573,5 +545,6 @@ public abstract class PointField extends PrimitiveFieldType {
 
   @Override
   public void checkSchemaField(final SchemaField field) {
+    // PointFields support DocValues
   }
 }

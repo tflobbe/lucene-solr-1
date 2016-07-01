@@ -16,6 +16,7 @@
  */
 package org.apache.solr;
 
+import org.apache.solr.common.SolrException;
 import org.apache.solr.schema.IntPointField;
 import org.junit.After;
 import org.junit.BeforeClass;
@@ -135,10 +136,12 @@ public class TestPointFields extends SolrTestCaseJ4 {
         "//result/doc[10]/int[@name='number_p_i_dv'][.='0']");
     
     assertFalse(h.getCore().getLatestSchema().getField("number_p_i").hasDocValues());
-//    nocommit: Figure out what the best exception is
-//    assertQEx("unexpected docvalues type NONE for field 'number_p_i' (expected=NUMERIC). Re-index with correct docvalues type.", 
-//        req("q", "*:*", "fl", "id, number_p_i", "sort", "number_p_i desc"), 
-//        SolrException.ErrorCode.BAD_REQUEST);
+    assertTrue(h.getCore().getLatestSchema().getField("number_p_i").getType() instanceof IntPointField);
+    assertQEx("Can't sort on a point field without docValues", 
+        req("q", "*:*", "fl", "id, number_p_i", "sort", "number_p_i desc"), 
+        SolrException.ErrorCode.BAD_REQUEST);
+    
+    //TODO: sort missing
   }
   
   @Test
@@ -165,19 +168,20 @@ public class TestPointFields extends SolrTestCaseJ4 {
         "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='number_p_i_dv']/int[@name='3'][.='1']");
     
     assertFalse(h.getCore().getLatestSchema().getField("number_p_i").hasDocValues());
-//    nocommit: Figure out what the best exception is
-//    assertQEx("unexpected docvalues type NONE for field 'number_p_i' (expected=NUMERIC). Re-index with correct docvalues type.", 
-//        req("q", "*:*", "fl", "id, number_p_i", "sort", "number_p_i desc"), 
-//        SolrException.ErrorCode.BAD_REQUEST);
+    assertTrue(h.getCore().getLatestSchema().getField("number_p_i").getType() instanceof IntPointField);
+    assertQEx("Can't facet on a PointField without docValues", 
+        req("q", "*:*", "fl", "id, number_p_i", "facet", "true", "facet.field", "number_p_i"), 
+        SolrException.ErrorCode.BAD_REQUEST);
   }
   
   @Test
-  public void testIntPointFieldRanceFacet() throws Exception {
+  public void testIntPointFieldRangeFacet() throws Exception {
     for (int i = 0; i < 10; i++) {
       assertU(adoc("id", String.valueOf(i), "number_p_i_dv", String.valueOf(i), "number_p_i", String.valueOf(i)));
     }
     assertU(commit());
     assertTrue(h.getCore().getLatestSchema().getField("number_p_i_dv").hasDocValues());
+    assertTrue(h.getCore().getLatestSchema().getField("number_p_i_dv").getType() instanceof IntPointField);
     assertQ(req("q", "*:*", "fl", "id, number_p_i_dv", "facet", "true", "facet.range", "number_p_i_dv", "facet.range.start", "-10", "facet.range.end", "10", "facet.range.gap", "2"), 
         "//*[@numFound='10']",
         "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i_dv']/lst[@name='counts']/int[@name='0'][.='2']",
@@ -197,10 +201,27 @@ public class TestPointFields extends SolrTestCaseJ4 {
         "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i_dv']/lst[@name='counts']/int[@name='-10'][.='0']");
     
     assertFalse(h.getCore().getLatestSchema().getField("number_p_i").hasDocValues());
-//    nocommit: Figure out what the best exception is
-//    assertQEx("unexpected docvalues type NONE for field 'number_p_i' (expected=NUMERIC). Re-index with correct docvalues type.", 
-//        req("q", "*:*", "fl", "id, number_p_i", "sort", "number_p_i desc"), 
-//        SolrException.ErrorCode.BAD_REQUEST);
+    assertTrue(h.getCore().getLatestSchema().getField("number_p_i").getType() instanceof IntPointField);
+    // Range Faceting with method = filter should work
+    assertQ(req("q", "*:*", "fl", "id, number_p_i", "facet", "true", "facet.range", "number_p_i", "facet.range.start", "-10", "facet.range.end", "10", "facet.range.gap", "2", "facet.range.method", "filter"), 
+        "//*[@numFound='10']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='0'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='2'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='4'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='6'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='8'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='-10'][.='0']");
+    
+    // this should actually use filter method instead of dv
+    assertQ(req("q", "*:*", "fl", "id, number_p_i", "facet", "true", "facet.range", "number_p_i", "facet.range.start", "-10", "facet.range.end", "10", "facet.range.gap", "2", "facet.range.method", "dv"), 
+        "//*[@numFound='10']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='0'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='2'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='4'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='6'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='8'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='-10'][.='0']");
+    
   }
 
   @Test
@@ -226,9 +247,11 @@ public class TestPointFields extends SolrTestCaseJ4 {
         "//result/doc[10]/float[@name='product(-1,number_p_i_dv)'][.='-9.0']");
     
     assertFalse(h.getCore().getLatestSchema().getField("number_p_i").hasDocValues());
-//    nocommit: Figure out what the best exception is
-//    assertQEx("unexpected docvalues type NONE for field 'number_p_i' (expected=NUMERIC). Re-index with correct docvalues type.", 
-//        req("q", "*:*", "fl", "id, number_p_i", "sort", "number_p_i desc"), 
+    assertTrue(h.getCore().getLatestSchema().getField("number_p_i").getType() instanceof IntPointField);
+
+//    nocommit: this may not be easy...
+//    assertQEx("unexpected docvalues type...", 
+//        req("q", "*:*", "fl", "id, number_p_i", "sort", "product(-1,number_p_i) asc"), 
 //        SolrException.ErrorCode.BAD_REQUEST);
   }
 
@@ -249,10 +272,25 @@ public class TestPointFields extends SolrTestCaseJ4 {
         "//lst[@name='stats']/lst[@name='stats_fields']/lst[@name='number_p_i_dv']/long[@name='missing'][.='1']");
     
     assertFalse(h.getCore().getLatestSchema().getField("number_p_i").hasDocValues());
-//    nocommit: Figure out what the best exception is
-//    assertQEx("unexpected docvalues type NONE for field 'number_p_i' (expected=NUMERIC). Re-index with correct docvalues type.", 
-//        req("q", "*:*", "fl", "id, number_p_i", "sort", "number_p_i desc"), 
-//        SolrException.ErrorCode.BAD_REQUEST);
+    assertTrue(h.getCore().getLatestSchema().getField("number_p_i").getType() instanceof IntPointField);
+    assertQEx("Can't calculate stats on a PointField without docValues", 
+        req("q", "*:*", "fl", "id, number_p_i", "stats", "true", "stats.field", "number_p_i"), 
+        SolrException.ErrorCode.BAD_REQUEST);
+  }
+  
+  @Test
+  public void testIntPointGrouping() throws Exception {
+    
+  }
+  
+  @Test
+  public void testIntPointJsonFacet() throws Exception {
+    
+  }
+  
+  @Test
+  public void testIntPointPivotFaceting() throws Exception {
+    
   }
   
 }

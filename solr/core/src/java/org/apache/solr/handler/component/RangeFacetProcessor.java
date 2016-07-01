@@ -92,7 +92,7 @@ public class RangeFacetProcessor extends SimpleFacets {
     final FieldType ft = sf.getType();
 
     if (method.equals(FacetRangeMethod.DV)) {
-      assert ft instanceof TrieField || ft instanceof PointField; //nocommit: Can we validate DV here?
+      assert ft instanceof TrieField || ft.isPointField();
       resOuter.add(key, getFacetRangeCountsDocValues(rangeFacetRequest));
     } else {
       resOuter.add(key, getFacetRangeCounts(rangeFacetRequest));

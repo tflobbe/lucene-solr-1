@@ -92,6 +92,11 @@ public class RangeFacetRequest extends FacetComponent.FacetBase {
           DateRangeField.class + "'. Will use method '" + FacetParams.FacetRangeMethod.FILTER + "' instead");
       method = FacetParams.FacetRangeMethod.FILTER;
     }
+    if (method.equals(FacetParams.FacetRangeMethod.DV) && !schemaField.hasDocValues() && (schemaField.getType().isPointField())) {
+      log.warn("Range facet method '" + FacetParams.FacetRangeMethod.DV + "' is not supported on PointFields without docValues." +
+          "Will use method '" + FacetParams.FacetRangeMethod.FILTER + "' instead");
+      method = FacetParams.FacetRangeMethod.FILTER;
+    }
 
     this.start = required.getFieldParam(facetOn, FacetParams.FACET_RANGE_START);
     this.end = required.getFieldParam(facetOn, FacetParams.FACET_RANGE_END);
@@ -164,9 +169,9 @@ public class RangeFacetRequest extends FacetComponent.FacetBase {
       }
     } else if (ft instanceof DateRangeField) {
       calc = new DateRangeEndpointCalculator(this, null);
-    }if (ft instanceof PointField) {
-      final PointField trie = (PointField) ft;
-      switch (trie.getType()) {
+    } else if (ft.isPointField()) {
+      final PointField pointField = (PointField) ft;
+      switch (pointField.getType()) {
         case FLOAT:
           calc = new FloatRangeEndpointCalculator(this);
           break;

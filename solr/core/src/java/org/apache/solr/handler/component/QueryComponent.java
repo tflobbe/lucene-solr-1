@@ -69,6 +69,7 @@ import org.apache.solr.response.ResultContext;
 import org.apache.solr.response.SolrQueryResponse;
 import org.apache.solr.schema.FieldType;
 import org.apache.solr.schema.IndexSchema;
+import org.apache.solr.schema.PointField;
 import org.apache.solr.schema.SchemaField;
 import org.apache.solr.search.CursorMark;
 import org.apache.solr.search.DocIterator;
@@ -185,6 +186,11 @@ public class QueryComponent extends SearchComponent
       }
 
       rb.setSortSpec( parser.getSort(true) );
+      for (SchemaField sf:rb.getSortSpec().getSchemaFields()) {
+        if (sf != null && sf.getType().isPointField() && !sf.hasDocValues()) {
+          throw new SolrException(SolrException.ErrorCode.BAD_REQUEST,"Can't sort on a point field without docValues");
+        }
+      }
       rb.setQparser(parser);
 
       final String cursorStr = rb.req.getParams().get(CursorMarkParams.CURSOR_MARK_PARAM);

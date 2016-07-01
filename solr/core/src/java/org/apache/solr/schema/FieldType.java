@@ -122,6 +122,10 @@ public abstract class FieldType extends FieldProperties {
   public boolean isPolyField(){
     return false;
   }
+  
+  public boolean isPointField() {
+    return false;
+  }
 
   /**
    * Returns true if the fields' docValues should be used for obtaining stored value

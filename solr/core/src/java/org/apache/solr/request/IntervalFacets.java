@@ -610,7 +610,7 @@ public class IntervalFacets implements Iterable<FacetInterval> {
       if ("*".equals(value)) {
         return null;
       }
-      if (schemaField.getType() instanceof PointField) {
+      if (schemaField.getType().isPointField()) {
         return ((PointField)schemaField.getType()).toInternalByteRef(value);
       }
       return new BytesRef(schemaField.getType().toInternal(value));

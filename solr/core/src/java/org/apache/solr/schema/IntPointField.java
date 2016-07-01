@@ -170,6 +170,8 @@ public class IntPointField extends PointField implements IntValueFieldType {
   }
   
   public void readableToIndexed(CharSequence val, BytesRefBuilder result) {
+    result.grow(Integer.BYTES);
+    result.setLength(Integer.BYTES);
     IntPoint.encodeDimension(Integer.parseInt(val.toString()), result.bytes(), 0);
   }
 }

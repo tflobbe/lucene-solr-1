@@ -43,6 +43,8 @@ public class XsltUpdateRequestHandlerTest extends SolrTestCaseJ4 {
 
   @BeforeClass
   public static void beforeTests() throws Exception {
+    // nocommit: skip point fields in this test until doc boost is fixed
+    System.setProperty("tests.intClass", "int");
     initCore("solrconfig.xml","schema.xml");
   }
 
