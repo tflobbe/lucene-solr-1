@@ -74,50 +74,51 @@ public class TestPointFields extends SolrTestCaseJ4 {
   
   @Test
   public void testIntPointFieldRangeQuery() throws Exception {
+    String fieldName = "number_p_i";
     for (int i = 0; i < 10; i++) {
-      assertU(adoc("id", String.valueOf(i), "number_p_i", String.valueOf(i)));
+      assertU(adoc("id", String.valueOf(i), fieldName, String.valueOf(i)));
     }
     assertU(commit());
-    assertQ(req("q", "number_p_i:[0 TO 3]", "fl", "id, number_p_i"), 
+    assertQ(req("q", fieldName + ":[0 TO 3]", "fl", "id, " + fieldName), 
         "//*[@numFound='4']",
-        "//result/doc[1]/int[@name='number_p_i'][.='0']",
-        "//result/doc[2]/int[@name='number_p_i'][.='1']",
-        "//result/doc[3]/int[@name='number_p_i'][.='2']",
-        "//result/doc[4]/int[@name='number_p_i'][.='3']");
+        "//result/doc[1]/int[@name='" + fieldName + "'][.='0']",
+        "//result/doc[2]/int[@name='" + fieldName + "'][.='1']",
+        "//result/doc[3]/int[@name='" + fieldName + "'][.='2']",
+        "//result/doc[4]/int[@name='" + fieldName + "'][.='3']");
     
-    assertQ(req("q", "number_p_i:{0 TO 3]", "fl", "id, number_p_i"), 
+    assertQ(req("q", "number_p_i:{0 TO 3]", "fl", "id, " + fieldName), 
         "//*[@numFound='3']",
-        "//result/doc[1]/int[@name='number_p_i'][.='1']",
-        "//result/doc[2]/int[@name='number_p_i'][.='2']",
-        "//result/doc[3]/int[@name='number_p_i'][.='3']");
+        "//result/doc[1]/int[@name='" + fieldName + "'][.='1']",
+        "//result/doc[2]/int[@name='" + fieldName + "'][.='2']",
+        "//result/doc[3]/int[@name='" + fieldName + "'][.='3']");
     
-    assertQ(req("q", "number_p_i:[0 TO 3}", "fl", "id, number_p_i"), 
+    assertQ(req("q", "number_p_i:[0 TO 3}", "fl", "id, " + fieldName), 
         "//*[@numFound='3']",
-        "//result/doc[1]/int[@name='number_p_i'][.='0']",
-        "//result/doc[2]/int[@name='number_p_i'][.='1']",
-        "//result/doc[3]/int[@name='number_p_i'][.='2']");
+        "//result/doc[1]/int[@name='" + fieldName + "'][.='0']",
+        "//result/doc[2]/int[@name='" + fieldName + "'][.='1']",
+        "//result/doc[3]/int[@name='" + fieldName + "'][.='2']");
     
-    assertQ(req("q", "number_p_i:{0 TO 3}", "fl", "id, number_p_i"), 
+    assertQ(req("q", "number_p_i:{0 TO 3}", "fl", "id, " + fieldName), 
         "//*[@numFound='2']",
-        "//result/doc[1]/int[@name='number_p_i'][.='1']",
-        "//result/doc[2]/int[@name='number_p_i'][.='2']");
+        "//result/doc[1]/int[@name='" + fieldName + "'][.='1']",
+        "//result/doc[2]/int[@name='" + fieldName + "'][.='2']");
     
-    assertQ(req("q", "number_p_i:{0 TO *}", "fl", "id, number_p_i"), 
+    assertQ(req("q", "number_p_i:{0 TO *}", "fl", "id, " + fieldName), 
         "//*[@numFound='9']",
-        "//result/doc[1]/int[@name='number_p_i'][.='1']");
+        "//result/doc[1]/int[@name='" + fieldName + "'][.='1']");
     
-    assertQ(req("q", "number_p_i:{* TO 3}", "fl", "id, number_p_i"), 
+    assertQ(req("q", "number_p_i:{* TO 3}", "fl", "id, " + fieldName), 
         "//*[@numFound='3']",
-        "//result/doc[1]/int[@name='number_p_i'][.='0']");
+        "//result/doc[1]/int[@name='" + fieldName + "'][.='0']");
     
-    assertQ(req("q", "number_p_i:[* TO 3}", "fl", "id, number_p_i"), 
+    assertQ(req("q", "number_p_i:[* TO 3}", "fl", "id, " + fieldName), 
         "//*[@numFound='3']",
-        "//result/doc[1]/int[@name='number_p_i'][.='0']");
+        "//result/doc[1]/int[@name='" + fieldName + "'][.='0']");
     
-    assertQ(req("q", "number_p_i:[* TO *}", "fl", "id, number_p_i"), 
+    assertQ(req("q", "number_p_i:[* TO *}", "fl", "id, " + fieldName), 
         "//*[@numFound='10']",
-        "//result/doc[1]/int[@name='number_p_i'][.='0']",
-        "//result/doc[10]/int[@name='number_p_i'][.='9']");
+        "//result/doc[1]/int[@name='" + fieldName + "'][.='0']",
+        "//result/doc[10]/int[@name='" + fieldName + "'][.='9']");
   }
   
   @Test
@@ -146,82 +147,86 @@ public class TestPointFields extends SolrTestCaseJ4 {
   
   @Test
   public void testIntPointFieldFacetField() throws Exception {
+    String docValuesField = "number_p_i_dv";
+    String nonDocValuesField = "number_p_i";
     for (int i = 0; i < 10; i++) {
-      assertU(adoc("id", String.valueOf(i), "number_p_i_dv", String.valueOf(i), "number_p_i", String.valueOf(i)));
+      assertU(adoc("id", String.valueOf(i), docValuesField, String.valueOf(i), nonDocValuesField, String.valueOf(i)));
     }
     assertU(commit());
-    assertTrue(h.getCore().getLatestSchema().getField("number_p_i_dv").hasDocValues());
-    assertTrue(h.getCore().getLatestSchema().getField("number_p_i_dv").getType() instanceof IntPointField);
-    assertQ(req("q", "*:*", "fl", "id, number_p_i_dv", "facet", "true", "facet.field", "number_p_i_dv"), 
+    assertTrue(h.getCore().getLatestSchema().getField(docValuesField).hasDocValues());
+    assertTrue(h.getCore().getLatestSchema().getField(docValuesField).getType() instanceof IntPointField);
+    assertQ(req("q", "*:*", "fl", "id, " + docValuesField, "facet", "true", "facet.field", docValuesField), 
         "//*[@numFound='10']",
-        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='number_p_i_dv']/int[@name='1'][.='1']",
-        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='number_p_i_dv']/int[@name='2'][.='1']",
-        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='number_p_i_dv']/int[@name='3'][.='1']");
+        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='" + docValuesField +"']/int[@name='1'][.='1']",
+        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='" + docValuesField +"']/int[@name='2'][.='1']",
+        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='" + docValuesField +"']/int[@name='3'][.='1']");
     
-    assertU(adoc("id", "10", "number_p_i_dv", "1", "number_p_i", "1"));
+    assertU(adoc("id", "10", docValuesField, "1", nonDocValuesField, "1"));
     
     assertU(commit());
-    assertQ(req("q", "*:*", "fl", "id, number_p_i_dv", "facet", "true", "facet.field", "number_p_i_dv"), 
+    assertQ(req("q", "*:*", "fl", "id, " + docValuesField, "facet", "true", "facet.field", docValuesField), 
         "//*[@numFound='11']",
-        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='number_p_i_dv']/int[@name='1'][.='2']",
-        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='number_p_i_dv']/int[@name='2'][.='1']",
-        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='number_p_i_dv']/int[@name='3'][.='1']");
+        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='" + docValuesField +"']/int[@name='1'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='" + docValuesField +"']/int[@name='2'][.='1']",
+        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='" + docValuesField +"']/int[@name='3'][.='1']");
     
-    assertFalse(h.getCore().getLatestSchema().getField("number_p_i").hasDocValues());
-    assertTrue(h.getCore().getLatestSchema().getField("number_p_i").getType() instanceof IntPointField);
+    assertFalse(h.getCore().getLatestSchema().getField(nonDocValuesField).hasDocValues());
+    assertTrue(h.getCore().getLatestSchema().getField(nonDocValuesField).getType() instanceof IntPointField);
     assertQEx("Can't facet on a PointField without docValues", 
-        req("q", "*:*", "fl", "id, number_p_i", "facet", "true", "facet.field", "number_p_i"), 
+        req("q", "*:*", "fl", "id, " + nonDocValuesField, "facet", "true", "facet.field", nonDocValuesField), 
         SolrException.ErrorCode.BAD_REQUEST);
   }
   
   @Test
   public void testIntPointFieldRangeFacet() throws Exception {
+    String docValuesField = "number_p_i_dv";
+    String nonDocValuesField = "number_p_i";
+    
     for (int i = 0; i < 10; i++) {
-      assertU(adoc("id", String.valueOf(i), "number_p_i_dv", String.valueOf(i), "number_p_i", String.valueOf(i)));
+      assertU(adoc("id", String.valueOf(i), docValuesField, String.valueOf(i), nonDocValuesField, String.valueOf(i)));
     }
     assertU(commit());
-    assertTrue(h.getCore().getLatestSchema().getField("number_p_i_dv").hasDocValues());
-    assertTrue(h.getCore().getLatestSchema().getField("number_p_i_dv").getType() instanceof IntPointField);
-    assertQ(req("q", "*:*", "fl", "id, number_p_i_dv", "facet", "true", "facet.range", "number_p_i_dv", "facet.range.start", "-10", "facet.range.end", "10", "facet.range.gap", "2"), 
+    assertTrue(h.getCore().getLatestSchema().getField(docValuesField).hasDocValues());
+    assertTrue(h.getCore().getLatestSchema().getField(docValuesField).getType() instanceof IntPointField);
+    assertQ(req("q", "*:*", "facet", "true", "facet.range", docValuesField, "facet.range.start", "-10", "facet.range.end", "10", "facet.range.gap", "2"), 
         "//*[@numFound='10']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i_dv']/lst[@name='counts']/int[@name='0'][.='2']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i_dv']/lst[@name='counts']/int[@name='2'][.='2']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i_dv']/lst[@name='counts']/int[@name='4'][.='2']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i_dv']/lst[@name='counts']/int[@name='6'][.='2']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i_dv']/lst[@name='counts']/int[@name='8'][.='2']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i_dv']/lst[@name='counts']/int[@name='-10'][.='0']");
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='0'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='2'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='4'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='6'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='8'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='-10'][.='0']");
     
-    assertQ(req("q", "*:*", "fl", "id, number_p_i_dv", "facet", "true", "facet.range", "number_p_i_dv", "facet.range.start", "-10", "facet.range.end", "10", "facet.range.gap", "2", "facet.range.method", "dv"), 
+    assertQ(req("q", "*:*", "facet", "true", "facet.range", docValuesField, "facet.range.start", "-10", "facet.range.end", "10", "facet.range.gap", "2", "facet.range.method", "dv"), 
         "//*[@numFound='10']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i_dv']/lst[@name='counts']/int[@name='0'][.='2']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i_dv']/lst[@name='counts']/int[@name='2'][.='2']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i_dv']/lst[@name='counts']/int[@name='4'][.='2']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i_dv']/lst[@name='counts']/int[@name='6'][.='2']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i_dv']/lst[@name='counts']/int[@name='8'][.='2']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i_dv']/lst[@name='counts']/int[@name='-10'][.='0']");
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='0'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='2'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='4'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='6'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='8'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='-10'][.='0']");
     
-    assertFalse(h.getCore().getLatestSchema().getField("number_p_i").hasDocValues());
-    assertTrue(h.getCore().getLatestSchema().getField("number_p_i").getType() instanceof IntPointField);
+    assertFalse(h.getCore().getLatestSchema().getField(nonDocValuesField).hasDocValues());
+    assertTrue(h.getCore().getLatestSchema().getField(nonDocValuesField).getType() instanceof IntPointField);
     // Range Faceting with method = filter should work
-    assertQ(req("q", "*:*", "fl", "id, number_p_i", "facet", "true", "facet.range", "number_p_i", "facet.range.start", "-10", "facet.range.end", "10", "facet.range.gap", "2", "facet.range.method", "filter"), 
+    assertQ(req("q", "*:*", "facet", "true", "facet.range", nonDocValuesField, "facet.range.start", "-10", "facet.range.end", "10", "facet.range.gap", "2", "facet.range.method", "filter"), 
         "//*[@numFound='10']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='0'][.='2']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='2'][.='2']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='4'][.='2']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='6'][.='2']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='8'][.='2']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='-10'][.='0']");
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='0'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='2'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='4'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='6'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='8'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='-10'][.='0']");
     
     // this should actually use filter method instead of dv
-    assertQ(req("q", "*:*", "fl", "id, number_p_i", "facet", "true", "facet.range", "number_p_i", "facet.range.start", "-10", "facet.range.end", "10", "facet.range.gap", "2", "facet.range.method", "dv"), 
+    assertQ(req("q", "*:*", "facet", "true", "facet.range", nonDocValuesField, "facet.range.start", "-10", "facet.range.end", "10", "facet.range.gap", "2", "facet.range.method", "dv"), 
         "//*[@numFound='10']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='0'][.='2']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='2'][.='2']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='4'][.='2']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='6'][.='2']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='8'][.='2']",
-        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='number_p_i']/lst[@name='counts']/int[@name='-10'][.='0']");
-    
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='0'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='2'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='4'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='6'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='8'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='-10'][.='0']");
   }
 
   @Test
@@ -293,4 +298,215 @@ public class TestPointFields extends SolrTestCaseJ4 {
     
   }
   
+
+  @Test
+  public void testIntPointFieldMultiValuedExactQuery() throws Exception {
+    String fieldName = "number_p_i_mv";
+    for (int i=0; i < 10; i++) {
+      assertU(adoc("id", String.valueOf(i), fieldName, String.valueOf(i+1), fieldName, String.valueOf(i+11)));
+    }
+    assertU(commit());
+    for (int i = 0; i < 20; i++) {
+      assertQ(req("q", fieldName + ":"+(i+1)), 
+          "//*[@numFound='1']");
+    }
+    
+    for (int i = 0; i < 20; i++) {
+      assertQ(req("q", fieldName + ":" + (i+1) + " OR " + fieldName + ":" + ((i+1)%10 + 1)), "//*[@numFound='2']");
+    }
+  }
+  
+  @Test
+  public void testIntPointFieldMultiValuedReturn() throws Exception {
+    String fieldName = "number_p_i_mv";
+    for (int i=0; i < 10; i++) {
+      assertU(adoc("id", String.valueOf(i), fieldName, String.valueOf(i+1), fieldName, String.valueOf(i+11)));
+    }
+    assertU(commit());
+    String[] expected = new String[11];
+    String[] expected2 = new String[11];
+    expected[0] = "//*[@numFound='10']"; 
+    expected2[0] = "//*[@numFound='10']"; 
+    for (int i = 1; i <= 10; i++) {
+      expected[i] = "//result/doc[" + i + "]/arr[@name='" + fieldName + "']/int[1][.='" + i + "']";
+      expected2[i] = "//result/doc[" + i + "]/arr[@name='" + fieldName + "']/int[2][.='" + (i + 10) + "']";
+    }
+    assertQ(req("q", "*:*", "fl", "id, " + fieldName), expected);
+    assertQ(req("q", "*:*", "fl", "id, " + fieldName), expected2);
+  }
+  
+  @Test
+  public void testIntPointFieldMultiValuedRangeQuery() throws Exception {
+    String fieldName = "number_p_i_mv";
+    for (int i=0; i < 10; i++) {
+      assertU(adoc("id", String.valueOf(i), fieldName, String.valueOf(i), fieldName, String.valueOf(i+10)));
+    }
+    assertU(commit());
+    assertQ(req("q", fieldName + ":[0 TO 3]", "fl", "id, " + fieldName), 
+        "//*[@numFound='4']",
+        "//result/doc[1]/arr[@name='" + fieldName + "']/int[1][.='0']",
+        "//result/doc[1]/arr[@name='" + fieldName + "']/int[2][.='10']",
+        "//result/doc[2]/arr[@name='" + fieldName + "']/int[1][.='1']",
+        "//result/doc[2]/arr[@name='" + fieldName + "']/int[2][.='11']",
+        "//result/doc[3]/arr[@name='" + fieldName + "']/int[1][.='2']",
+        "//result/doc[3]/arr[@name='" + fieldName + "']/int[2][.='12']",
+        "//result/doc[4]/arr[@name='" + fieldName + "']/int[1][.='3']",
+        "//result/doc[4]/arr[@name='" + fieldName + "']/int[2][.='13']");
+    
+    assertQ(req("q", fieldName + ":{0 TO 3]", "fl", "id, " + fieldName), 
+        "//*[@numFound='3']",
+        "//result/doc[1]/arr[@name='" + fieldName + "']/int[1][.='1']",
+        "//result/doc[2]/arr[@name='" + fieldName + "']/int[1][.='2']",
+        "//result/doc[3]/arr[@name='" + fieldName + "']/int[1][.='3']");
+    
+    assertQ(req("q", fieldName + ":[0 TO 3}", "fl", "id, " + fieldName), 
+        "//*[@numFound='3']",
+        "//result/doc[1]/arr[@name='" + fieldName + "']/int[1][.='0']",
+        "//result/doc[2]/arr[@name='" + fieldName + "']/int[1][.='1']",
+        "//result/doc[3]/arr[@name='" + fieldName + "']/int[1][.='2']");
+    
+    assertQ(req("q", fieldName + ":{0 TO 3}", "fl", "id, " + fieldName), 
+        "//*[@numFound='2']",
+        "//result/doc[1]/arr[@name='" + fieldName + "']/int[1][.='1']",
+        "//result/doc[2]/arr[@name='" + fieldName + "']/int[1][.='2']");
+    
+    assertQ(req("q", fieldName + ":{0 TO *}", "fl", "id, " + fieldName), 
+        "//*[@numFound='10']",
+        "//result/doc[1]/arr[@name='" + fieldName + "']/int[1][.='0']");
+    
+    assertQ(req("q", fieldName + ":{10 TO *}", "fl", "id, " + fieldName), 
+        "//*[@numFound='9']",
+        "//result/doc[1]/arr[@name='" + fieldName + "']/int[1][.='1']");
+    
+    assertQ(req("q", fieldName + ":{* TO 3}", "fl", "id, " + fieldName), 
+        "//*[@numFound='3']",
+        "//result/doc[1]/arr[@name='" + fieldName + "']/int[1][.='0']");
+    
+    assertQ(req("q", fieldName + ":[* TO 3}", "fl", "id, " + fieldName), 
+        "//*[@numFound='3']",
+        "//result/doc[1]/arr[@name='" + fieldName + "']/int[1][.='0']");
+    
+    assertQ(req("q", fieldName + ":[* TO *}", "fl", "id, " + fieldName), 
+        "//*[@numFound='10']",
+        "//result/doc[1]/arr[@name='" + fieldName + "']/int[1][.='0']",
+        "//result/doc[10]/arr[@name='" + fieldName + "']/int[1][.='9']");
+  }
+  
+  //TODO MV SORT?
+  
+
+  @Test
+  public void testIntPointFieldMultiValuedFacetField() throws Exception {
+    String docValuesField = "number_p_i_mv_dv";
+    String nonDocValuesField = "number_p_i_mv";
+    for (int i = 0; i < 10; i++) {
+      assertU(adoc("id", String.valueOf(i), docValuesField, String.valueOf(i), docValuesField, String.valueOf(i + 10), 
+          nonDocValuesField, String.valueOf(i), nonDocValuesField, String.valueOf(i + 10)));
+    }
+    assertU(commit());
+    assertTrue(h.getCore().getLatestSchema().getField(docValuesField).hasDocValues());
+    assertTrue(h.getCore().getLatestSchema().getField(docValuesField).getType() instanceof IntPointField);
+    assertQ(req("q", "*:*", "fl", "id, " + docValuesField, "facet", "true", "facet.field", docValuesField), 
+        "//*[@numFound='10']",
+        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='" + docValuesField +"']/int[@name='1'][.='1']",
+        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='" + docValuesField +"']/int[@name='2'][.='1']",
+        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='" + docValuesField +"']/int[@name='3'][.='1']",
+        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='" + docValuesField +"']/int[@name='10'][.='1']",
+        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='" + docValuesField +"']/int[@name='11'][.='1']",
+        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='" + docValuesField +"']/int[@name='12'][.='1']");
+    
+    assertU(adoc("id", "10", docValuesField, "1", nonDocValuesField, "1"));
+    
+    assertU(commit());
+    assertQ(req("q", "*:*", "fl", "id, " + docValuesField, "facet", "true", "facet.field", docValuesField), 
+        "//*[@numFound='11']",
+        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='" + docValuesField +"']/int[@name='1'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='" + docValuesField +"']/int[@name='2'][.='1']",
+        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='" + docValuesField +"']/int[@name='3'][.='1']",
+        "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='" + docValuesField +"']/int[@name='10'][.='1']");
+    
+    assertFalse(h.getCore().getLatestSchema().getField(nonDocValuesField).hasDocValues());
+    assertTrue(h.getCore().getLatestSchema().getField(nonDocValuesField).getType() instanceof IntPointField);
+    assertQEx("Can't facet on a PointField without docValues", 
+        req("q", "*:*", "fl", "id, " + nonDocValuesField, "facet", "true", "facet.field", nonDocValuesField), 
+        SolrException.ErrorCode.BAD_REQUEST);
+  }
+  
+
+  @Test
+  public void testIntPointFieldMultiValuedRangeFacet() throws Exception {
+    String docValuesField = "number_p_i_mv_dv";
+    String nonDocValuesField = "number_p_i_mv";
+    
+    for (int i = 0; i < 10; i++) {
+      assertU(adoc("id", String.valueOf(i), docValuesField, String.valueOf(i), docValuesField, String.valueOf(i + 10), 
+          nonDocValuesField, String.valueOf(i), nonDocValuesField, String.valueOf(i + 10)));
+    }
+    assertU(commit());
+    assertTrue(h.getCore().getLatestSchema().getField(docValuesField).hasDocValues());
+    assertTrue(h.getCore().getLatestSchema().getField(docValuesField).getType() instanceof IntPointField);
+    assertQ(req("q", "*:*", "fl", "id", "facet", "true", "facet.range", docValuesField, "facet.range.start", "-10", "facet.range.end", "20", "facet.range.gap", "2"), 
+        "//*[@numFound='10']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='0'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='2'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='4'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='6'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='8'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='10'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='12'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='14'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='16'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='18'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='-10'][.='0']");
+    
+    assertQ(req("q", "*:*", "fl", "id", "facet", "true", "facet.range", docValuesField, "facet.range.start", "-10", "facet.range.end", "20", "facet.range.gap", "2", "facet.range.method", "dv"), 
+        "//*[@numFound='10']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='0'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='2'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='4'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='6'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='8'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='10'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='12'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='14'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='16'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='18'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='-10'][.='0']");
+    
+    assertQ(req("q", "*:*", "fl", "id", "facet", "true", "facet.range", docValuesField, "facet.range.start", "0", "facet.range.end", "20", "facet.range.gap", "100"), 
+        "//*[@numFound='10']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + docValuesField + "']/lst[@name='counts']/int[@name='0'][.='10']");
+    
+    assertFalse(h.getCore().getLatestSchema().getField(nonDocValuesField).hasDocValues());
+    assertTrue(h.getCore().getLatestSchema().getField(nonDocValuesField).getType() instanceof IntPointField);
+    // Range Faceting with method = filter should work
+    assertQ(req("q", "*:*", "fl", "id", "facet", "true", "facet.range", nonDocValuesField, "facet.range.start", "-10", "facet.range.end", "20", "facet.range.gap", "2", "facet.range.method", "filter"), 
+        "//*[@numFound='10']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='0'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='2'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='4'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='6'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='8'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='10'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='12'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='14'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='16'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='18'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='-10'][.='0']");
+    
+    // this should actually use filter method instead of dv
+    assertQ(req("q", "*:*", "fl", "id", "facet", "true", "facet.range", nonDocValuesField, "facet.range.start", "-10", "facet.range.end", "20", "facet.range.gap", "2", "facet.range.method", "dv"), 
+        "//*[@numFound='10']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='0'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='2'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='4'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='6'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='8'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='10'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='12'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='14'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='16'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='18'][.='2']",
+        "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='-10'][.='0']");
+  }
 }

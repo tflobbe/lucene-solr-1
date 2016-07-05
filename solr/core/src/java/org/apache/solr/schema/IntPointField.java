@@ -17,28 +17,21 @@
 
 package org.apache.solr.schema;
 
-import java.io.IOException;
-import java.util.Map;
-
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntPoint;
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.queries.function.FunctionValues;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.queries.function.ValueSource;
-import org.apache.lucene.queries.function.docvalues.IntDocValues;
-import org.apache.lucene.queries.function.valuesource.SortedSetFieldSource;
+import org.apache.lucene.queries.function.valuesource.IntFieldSource;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.apache.lucene.util.LegacyNumericUtils;
-import org.apache.lucene.util.mutable.MutableValue;
-import org.apache.lucene.util.mutable.MutableValueInt;
+import org.apache.solr.common.SolrException;
 import org.apache.solr.search.QParser;
+import org.apache.solr.uninverting.UninvertingReader.Type;
 
 /**
  * A numeric field that can contain 32-bit signed two's complement integer values.
@@ -51,6 +44,11 @@ import org.apache.solr.search.QParser;
  * @see Integer
  */
 public class IntPointField extends PointField implements IntValueFieldType {
+  
+  public IntPointField() {
+    super(Integer.BYTES);
+  }
+
   {
     type=PointTypes.INTEGER;
   }
@@ -91,57 +89,58 @@ public class IntPointField extends PointField implements IntValueFieldType {
   
   @Override
   protected ValueSource getSingleValueSource(SortedSetSelector.Type choice, SchemaField f) {
+    throw new UnsupportedOperationException("Not implemented yet");
     
-    return new SortedSetFieldSource(f.getName(), choice) {
-      @Override
-      public FunctionValues getValues(Map context, LeafReaderContext readerContext) throws IOException {
-        SortedSetFieldSource thisAsSortedSetFieldSource = this; // needed for nested anon class ref
-        
-        SortedSetDocValues sortedSet = DocValues.getSortedSet(readerContext.reader(), field);
-        SortedDocValues view = SortedSetSelector.wrap(sortedSet, selector);
-        
-        return new IntDocValues(thisAsSortedSetFieldSource) {
-          @Override
-          public int intVal(int doc) {
-            BytesRef bytes = view.get(doc);
-            if (0 == bytes.length) {
-              // the only way this should be possible is for non existent value
-              assert !exists(doc) : "zero bytes for doc, but exists is true";
-              return 0;
-            }
-            return LegacyNumericUtils.prefixCodedToInt(bytes);
-          }
-
-          @Override
-          public boolean exists(int doc) {
-            return -1 != view.getOrd(doc);
-          }
-
-          @Override
-          public ValueFiller getValueFiller() {
-            return new ValueFiller() {
-              private final MutableValueInt mval = new MutableValueInt();
-              
-              @Override
-              public MutableValue getValue() {
-                return mval;
-              }
-              
-              @Override
-              public void fillValue(int doc) {
-                // micro optimized (eliminate at least one redudnent ord check) 
-                //mval.exists = exists(doc);
-                //mval.value = mval.exists ? intVal(doc) : 0;
-                //
-                BytesRef bytes = view.get(doc);
-                mval.exists = (0 == bytes.length);
-                mval.value = mval.exists ? LegacyNumericUtils.prefixCodedToInt(bytes) : 0;
-              }
-            };
-          }
-        };
-      }
-    };
+//    return new SortedSetFieldSource(f.getName(), choice) {
+//      @Override
+//      public FunctionValues getValues(Map context, LeafReaderContext readerContext) throws IOException {
+//        SortedSetFieldSource thisAsSortedSetFieldSource = this; // needed for nested anon class ref
+//        
+//        SortedSetDocValues sortedSet = DocValues.getSortedSet(readerContext.reader(), field);
+//        SortedDocValues view = SortedSetSelector.wrap(sortedSet, selector);
+//        
+//        return new IntDocValues(thisAsSortedSetFieldSource) {
+//          @Override
+//          public int intVal(int doc) {
+//            BytesRef bytes = view.get(doc);
+//            if (0 == bytes.length) {
+//              // the only way this should be possible is for non existent value
+//              assert !exists(doc) : "zero bytes for doc, but exists is true";
+//              return 0;
+//            }
+//            return LegacyNumericUtils.prefixCodedToInt(bytes);
+//          }
+//
+//          @Override
+//          public boolean exists(int doc) {
+//            return -1 != view.getOrd(doc);
+//          }
+//
+//          @Override
+//          public ValueFiller getValueFiller() {
+//            return new ValueFiller() {
+//              private final MutableValueInt mval = new MutableValueInt();
+//              
+//              @Override
+//              public MutableValue getValue() {
+//                return mval;
+//              }
+//              
+//              @Override
+//              public void fillValue(int doc) {
+//                // micro optimized (eliminate at least one redudnent ord check) 
+//                //mval.exists = exists(doc);
+//                //mval.value = mval.exists ? intVal(doc) : 0;
+//                //
+//                BytesRef bytes = view.get(doc);
+//                mval.exists = (0 == bytes.length);
+//                mval.value = mval.exists ? LegacyNumericUtils.prefixCodedToInt(bytes) : 0;
+//              }
+//            };
+//          }
+//        };
+//      }
+//    };
   }
   
   @Override
@@ -173,5 +172,56 @@ public class IntPointField extends PointField implements IntValueFieldType {
     result.grow(Integer.BYTES);
     result.setLength(Integer.BYTES);
     IntPoint.encodeDimension(Integer.parseInt(val.toString()), result.bytes(), 0);
+  }
+  
+
+  @Override
+  public SortField getSortField(SchemaField field, boolean top) {
+    field.checkSortability();
+
+    Object missingValue = null;
+    boolean sortMissingLast  = field.sortMissingLast();
+    boolean sortMissingFirst = field.sortMissingFirst();
+
+    if (sortMissingLast) {
+      missingValue = top ? Integer.MIN_VALUE : Integer.MAX_VALUE;
+    }
+    else if( sortMissingFirst ) {
+      missingValue = top ? Integer.MAX_VALUE : Integer.MIN_VALUE;
+    }
+    SortField sf = new SortField( field.getName(), SortField.Type.INT, top);
+    sf.setMissingValue(missingValue);
+    return sf;
+  }
+  
+  @Override
+  public Type getUninversionType(SchemaField sf) {
+    if (sf.multiValued()) {
+      return Type.SORTED_SET_INTEGER;
+    } else {
+      return Type.INTEGER_POINT;
+    }
+  }
+
+  @Override
+  public ValueSource getValueSource(SchemaField field, QParser qparser) {
+    field.checkFieldCacheSource();
+    return new IntFieldSource(field.getName());
+  }
+  
+  @Override
+  public FieldType.LegacyNumericType getNumericType() {
+    return FieldType.LegacyNumericType.INT;
+  }
+  
+  @Override
+  public IndexableField createField(SchemaField field, Object value, float boost) {
+    if (!isFieldUsed(field)) return null;
+    
+    if (boost != 1.0) {
+      throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "Can't use document/field boost for PointField. Field: " + field.getName() + ", boost: " + boost);
+    }
+    int intValue = (value instanceof Number) ? ((Number)value).intValue(): Integer.parseInt(value.toString());
+    return new IntPoint(field.getName(), intValue);
   }
 }
