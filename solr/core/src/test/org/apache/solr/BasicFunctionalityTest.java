@@ -63,8 +63,6 @@ public class BasicFunctionalityTest extends SolrTestCaseJ4 {
 
   @BeforeClass
   public static void beforeTests() throws Exception {
-    //nocommit: skip point fields in this test until doc boost is fixed
-    System.setProperty("tests.intClass", "int");
     initCore("solrconfig.xml","schema.xml");
   }
   // tests the performance of dynamic field creation and

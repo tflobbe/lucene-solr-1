@@ -16,18 +16,18 @@
  */
 package org.apache.solr;
 
+import java.io.IOException;
+import java.util.List;
+
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.response.QueryResponse;
+import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.params.CommonParams;
 import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.util.NamedList;
-import org.apache.solr.common.SolrDocumentList;
 import org.junit.Test;
-
-import java.io.IOException;
-import java.util.List;
 
 /**
  * TODO? perhaps use:
@@ -48,10 +48,13 @@ public class TestDistributedGrouping extends BaseDistributedSearchTestCase {
   String tdate_b = "b_n_tdt";
   String oddField="oddField_s1";
   
+  static {
+    // nocommit: skip point fields in this test until doc boost is fixed
+    supressPointFields = true;
+  }
+  
   @Override
   public void distribSetUp() throws Exception {
-    // nocommit: skip point fields in this test until doc boost is fixed
-    System.setProperty("tests.intClass", "int");
     super.distribSetUp();
   }
 

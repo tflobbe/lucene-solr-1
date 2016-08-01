@@ -16,11 +16,21 @@
  */
 package org.apache.solr;
 
+import java.io.IOException;
+import java.lang.invoke.MethodHandles;
+
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.schema.IntPointField;
+import org.apache.solr.search.SolrIndexSearcher;
+import org.apache.solr.util.RefCounted;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Tests for PointField functionality
@@ -28,6 +38,8 @@ import org.junit.Test;
  *
  */
 public class TestPointFields extends SolrTestCaseJ4 {
+  
+  private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
   
   @BeforeClass
   public static void beforeClass() throws Exception {
@@ -251,13 +263,19 @@ public class TestPointFields extends SolrTestCaseJ4 {
         "//result/doc[3]/float[@name='product(-1,number_p_i_dv)'][.='-2.0']",
         "//result/doc[10]/float[@name='product(-1,number_p_i_dv)'][.='-9.0']");
     
+    assertQ(req("q", "*:*", "fl", "id, number_p_i_dv, field(number_p_i_dv)"), 
+        "//*[@numFound='10']",
+        "//result/doc[1]/int[@name='field(number_p_i_dv)'][.='0']",
+        "//result/doc[2]/int[@name='field(number_p_i_dv)'][.='1']",
+        "//result/doc[3]/int[@name='field(number_p_i_dv)'][.='2']",
+        "//result/doc[10]/int[@name='field(number_p_i_dv)'][.='9']");
+    
     assertFalse(h.getCore().getLatestSchema().getField("number_p_i").hasDocValues());
     assertTrue(h.getCore().getLatestSchema().getField("number_p_i").getType() instanceof IntPointField);
 
-//    nocommit: this may not be easy...
-//    assertQEx("unexpected docvalues type...", 
-//        req("q", "*:*", "fl", "id, number_p_i", "sort", "product(-1,number_p_i) asc"), 
-//        SolrException.ErrorCode.BAD_REQUEST);
+    assertQEx("Point fields can't use FieldCache. Use docValues=true for field: number_p_i", 
+        req("q", "*:*", "fl", "id, number_p_i", "sort", "product(-1,number_p_i) asc"), 
+        SolrException.ErrorCode.BAD_REQUEST);
   }
 
   @Test
@@ -406,6 +424,7 @@ public class TestPointFields extends SolrTestCaseJ4 {
     assertU(commit());
     assertTrue(h.getCore().getLatestSchema().getField(docValuesField).hasDocValues());
     assertTrue(h.getCore().getLatestSchema().getField(docValuesField).getType() instanceof IntPointField);
+    
     assertQ(req("q", "*:*", "fl", "id, " + docValuesField, "facet", "true", "facet.field", docValuesField), 
         "//*[@numFound='10']",
         "//lst[@name='facet_counts']/lst[@name='facet_fields']/lst[@name='" + docValuesField +"']/int[@name='1'][.='1']",
@@ -508,5 +527,63 @@ public class TestPointFields extends SolrTestCaseJ4 {
         "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='16'][.='2']",
         "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='18'][.='2']",
         "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='-10'][.='0']");
+  }
+  
+  private boolean dvIsRandomAccessOrds(String field) throws IOException {
+    RefCounted<SolrIndexSearcher> ref = null;
+    try {
+      ref = h.getCore().getSearcher(); 
+      SortedSetDocValues values = DocValues.getSortedSet(ref.get().getIndexReader().leaves().get(0).reader(), field);
+      return values instanceof RandomAccessOrds;
+    } finally {
+      if (ref != null) ref.decref();
+    }
+  }
+  
+  @Test
+  public void testIntPointMultiValuedFunctionQuery() throws Exception {
+    String docValuesField = "number_p_i_mv_dv";
+    String nonDocValuesField = "number_p_i_mv";
+    
+    for (int i = 0; i < 10; i++) {
+      assertU(adoc("id", String.valueOf(i), docValuesField, String.valueOf(i), docValuesField, String.valueOf(i + 10), 
+          nonDocValuesField, String.valueOf(i), nonDocValuesField, String.valueOf(i + 10)));
+    }
+    assertU(commit());
+    assertTrue(h.getCore().getLatestSchema().getField(docValuesField).hasDocValues());
+    assertTrue(h.getCore().getLatestSchema().getField(docValuesField).multiValued());
+    assertTrue(h.getCore().getLatestSchema().getField(docValuesField).getType() instanceof IntPointField);
+    String function = "field(" + docValuesField + ", min)";
+    
+    assertQ(req("q", "*:*", "fl", "id, " + function), 
+        "//*[@numFound='10']",
+        "//result/doc[1]/int[@name='" + function + "'][.='0']",
+        "//result/doc[2]/int[@name='" + function + "'][.='1']",
+        "//result/doc[3]/int[@name='" + function + "'][.='2']",
+        "//result/doc[10]/int[@name='" + function + "'][.='9']");
+    
+    if (dvIsRandomAccessOrds(docValuesField)) {
+      function = "field(" + docValuesField + ", max)";
+      assertQ(req("q", "*:*", "fl", "id, " + function), 
+          "//*[@numFound='10']",
+          "//result/doc[1]/int[@name='" + function + "'][.='10']",
+          "//result/doc[2]/int[@name='" + function + "'][.='11']",
+          "//result/doc[3]/int[@name='" + function + "'][.='12']",
+          "//result/doc[10]/int[@name='" + function + "'][.='19']");
+    }
+    
+    assertFalse(h.getCore().getLatestSchema().getField(nonDocValuesField).hasDocValues());
+    assertTrue(h.getCore().getLatestSchema().getField(nonDocValuesField).multiValued());
+    assertTrue(h.getCore().getLatestSchema().getField(nonDocValuesField).getType() instanceof IntPointField);
+
+    function = "field(" + nonDocValuesField + ", min)";
+    
+    assertQEx("Point fields can't use FieldCache. Use docValues=true for field: " + nonDocValuesField, 
+        req("q", "*:*", "fl", "id", "sort", function + " asc"), 
+        SolrException.ErrorCode.BAD_REQUEST);
+    
+    assertQEx("Point fields can't use FieldCache. Use docValues=true for field: " + nonDocValuesField, 
+        req("q", "*:*", "fl", "id, " + function), 
+        SolrException.ErrorCode.BAD_REQUEST);
   }
 }

@@ -195,7 +195,7 @@ public final class SchemaField extends FieldProperties {
     }
     if (this.type.isPointField() && !hasDocValues()) {
       throw new SolrException(SolrException.ErrorCode.BAD_REQUEST, 
-                              "Point Fields can't use FieldCache. Use docValues=true for field: " 
+                              "Point fields can't use FieldCache. Use docValues=true for field: " 
                               + getName());
     }
     

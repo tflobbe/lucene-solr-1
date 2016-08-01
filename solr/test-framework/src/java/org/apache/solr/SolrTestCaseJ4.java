@@ -161,6 +161,8 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
   private static String coreName = DEFAULT_TEST_CORENAME;
 
   public static int DEFAULT_CONNECTION_TIMEOUT = 60000;  // default socket connection timeout in ms
+  
+  protected static boolean supressPointFields = false;
 
   protected void writeCoreProperties(Path coreDirectory, String corename) throws IOException {
     Properties props = new Properties();
@@ -373,10 +375,12 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
     lrf = h.getRequestFactory("standard", 0, 20, CommonParams.VERSION, "2.2");
   }
   
-  /** sets system properties based on 
+  /** 
+   * Sets system properties to allow generation of random configurations of
+   * solrconfig.xml and schema.xml. 
+   * Sets properties used on  
    * {@link #newIndexWriterConfig(org.apache.lucene.analysis.Analyzer)}
-   * 
-   * configs can use these system properties to vary the indexwriter settings
+   *  and base schema.xml (Point Fields)
    */
   public static void newRandomConfig() {
     IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
@@ -392,6 +396,11 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
       mergeSchedulerClass = "org.apache.lucene.index.ConcurrentMergeScheduler";
     }
     System.setProperty("solr.tests.mergeScheduler", mergeSchedulerClass);
+    if (supressPointFields || random().nextBoolean()) {
+      System.setProperty("solr.tests.intClass", "int");
+    } else {
+      System.setProperty("solr.tests.intClass", "pint");
+    }
   }
 
   public static Throwable getWrappedException(Throwable e) {
