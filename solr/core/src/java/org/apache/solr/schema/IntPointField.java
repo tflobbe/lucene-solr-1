@@ -177,11 +177,13 @@ public class IntPointField extends PointField implements IntValueFieldType {
     return charsRef.get();
   }
   
-  public String indexedToReadable(String _indexedForm) {
-    final BytesRef indexedForm = new BytesRef(_indexedForm);
-    return Integer.toString(IntPoint.decodeDimension(indexedForm.bytes, 0));
+  @Override
+  public String indexedToReadable(String indexedForm) {
+    final BytesRef indexedFormRef = new BytesRef(indexedForm);
+    return Integer.toString(IntPoint.decodeDimension(indexedFormRef.bytes, 0));
   }
   
+  @Override
   public void readableToIndexed(CharSequence val, BytesRefBuilder result) {
     result.grow(Integer.BYTES);
     result.setLength(Integer.BYTES);
