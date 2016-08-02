@@ -16,6 +16,10 @@
  */
 package org.apache.solr.handler.component;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 import org.apache.solr.SolrTestCaseJ4;
 import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.search.CollapsingQParserPlugin;
@@ -23,9 +27,11 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.util.*;
-
 public class TestExpandComponent extends SolrTestCaseJ4 {
+  
+  static {
+    supressPointFields = true;
+  }
 
   @BeforeClass
   public static void beforeClass() throws Exception {

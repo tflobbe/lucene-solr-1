@@ -38,6 +38,11 @@ import org.junit.Test;
 @SuppressCodecs({"Appending","Lucene3x","Lucene40","Lucene41","Lucene42"})
 public class TestCollapseQParserPlugin extends SolrTestCaseJ4 {
 
+  static {
+    // nocommit: skip point fields in this test until grouping
+    supressPointFields = true;
+  }
+  
   @BeforeClass
   public static void beforeClass() throws Exception {
     initCore("solrconfig-collapseqparser.xml", "schema11.xml");
