@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -32,6 +31,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.response.TextResponseWriter;
 import org.apache.solr.search.QParser;
@@ -181,20 +182,33 @@ public abstract class PointField extends PrimitiveFieldType {
     return storedToIndexedByteRef(f).utf8ToString();
   }
   
-  private BytesRef storedToIndexedByteRef(IndexableField f) {
-    BytesRef bytes = new BytesRef(new byte[typeByteLength], 0, typeByteLength);
-    IntPoint.encodeDimension(f.numericValue().intValue(), bytes.bytes, 0);
-    return bytes;
+  @Override
+  public CharsRef indexedToReadable(BytesRef indexedForm, CharsRefBuilder charsRef) {
+    final String value = indexedToReadable(indexedForm);
+    charsRef.grow(value.length());
+    charsRef.setLength(value.length());
+    value.getChars(0, charsRef.length(), charsRef.chars(), 0);
+    return charsRef.get();
   }
   
+  @Override
+  public String indexedToReadable(String indexedForm) {
+    return indexedToReadable(new BytesRef(indexedForm));
+  }
+  
+  protected abstract String indexedToReadable(BytesRef indexedForm);
+  
+  protected abstract BytesRef storedToIndexedByteRef(IndexableField f);
+
   protected boolean isFieldUsed(SchemaField field) {
     boolean indexed = field.indexed();
     boolean stored = field.stored();
     boolean docValues = field.hasDocValues();
 
     if (!indexed && !stored && !docValues) {
-      if (log.isTraceEnabled())
+      if (log.isTraceEnabled()) {
         log.trace("Ignoring unindexed/unstored field: " + field);
+      }
       return false;
     }
     return true;
@@ -226,11 +240,12 @@ public abstract class PointField extends PrimitiveFieldType {
       }
     }
     if (sf.stored()) {
-      //TODO: Can value be something other than a String?
-      fields.add(new StoredField(sf.getName(), (Integer) this.toNativeType(value)));
+      fields.add(getStoredField(sf, value));
     }
     return fields;
   }
+
+  protected abstract StoredField getStoredField(SchemaField sf, Object value);
 
   @Override
   public void checkSchemaField(final SchemaField field) {

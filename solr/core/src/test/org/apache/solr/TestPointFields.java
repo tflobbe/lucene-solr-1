@@ -56,18 +56,28 @@ public class TestPointFields extends SolrTestCaseJ4 {
   
   @Test
   public void testIntPointFieldExactQuery() throws Exception {
+    doTestIntPointFieldExactQuery("number_p_i");
+    doTestIntPointFieldExactQuery("number_p_i_mv");
+    doTestIntPointFieldExactQuery("number_p_i_ni_dv");
+    doTestIntPointFieldExactQuery("number_p_i_ni_mv_dv");
+    
+  }
+  
+  private void doTestIntPointFieldExactQuery(String field) throws Exception {
     for (int i=0; i < 10; i++) {
-      assertU(adoc("id", String.valueOf(i), "number_p_i", String.valueOf(i+1)));
+      assertU(adoc("id", String.valueOf(i), field, String.valueOf(i+1)));
     }
     assertU(commit());
     for (int i = 0; i < 10; i++) {
-      assertQ(req("q", "number_p_i:"+(i+1), "fl", "id, number_p_i"), 
+      assertQ(req("q", field + ":"+(i+1), "fl", "id, " + field), 
           "//*[@numFound='1']");
     }
     
     for (int i = 0; i < 10; i++) {
-      assertQ(req("q", "number_p_i:" + (i+1) + " OR number_p_i:" + ((i+1)%10 + 1)), "//*[@numFound='2']");
+      assertQ(req("q", field + ":" + (i+1) + " OR " + field + ":" + ((i+1)%10 + 1)), "//*[@numFound='2']");
     }
+    clearIndex();
+    assertU(commit());
   }
   
   @Test
@@ -150,7 +160,8 @@ public class TestPointFields extends SolrTestCaseJ4 {
     
     assertFalse(h.getCore().getLatestSchema().getField("number_p_i").hasDocValues());
     assertTrue(h.getCore().getLatestSchema().getField("number_p_i").getType() instanceof IntPointField);
-    assertQEx("Can't sort on a point field without docValues", 
+    assertQEx("Expecting Exception", 
+        "can not sort on a PointField without doc values: number_p_i", 
         req("q", "*:*", "fl", "id, number_p_i", "sort", "number_p_i desc"), 
         SolrException.ErrorCode.BAD_REQUEST);
     
@@ -184,7 +195,8 @@ public class TestPointFields extends SolrTestCaseJ4 {
     
     assertFalse(h.getCore().getLatestSchema().getField(nonDocValuesField).hasDocValues());
     assertTrue(h.getCore().getLatestSchema().getField(nonDocValuesField).getType() instanceof IntPointField);
-    assertQEx("Can't facet on a PointField without docValues", 
+    assertQEx("Expecting Exception", 
+        "Can't facet on a PointField without docValues", 
         req("q", "*:*", "fl", "id, " + nonDocValuesField, "facet", "true", "facet.field", nonDocValuesField), 
         SolrException.ErrorCode.BAD_REQUEST);
   }
@@ -273,7 +285,8 @@ public class TestPointFields extends SolrTestCaseJ4 {
     assertFalse(h.getCore().getLatestSchema().getField("number_p_i").hasDocValues());
     assertTrue(h.getCore().getLatestSchema().getField("number_p_i").getType() instanceof IntPointField);
 
-    assertQEx("Point fields can't use FieldCache. Use docValues=true for field: number_p_i", 
+    assertQEx("Expecting Exception", 
+        "sort param could not be parsed as a query", 
         req("q", "*:*", "fl", "id, number_p_i", "sort", "product(-1,number_p_i) asc"), 
         SolrException.ErrorCode.BAD_REQUEST);
   }
@@ -296,18 +309,14 @@ public class TestPointFields extends SolrTestCaseJ4 {
     
     assertFalse(h.getCore().getLatestSchema().getField("number_p_i").hasDocValues());
     assertTrue(h.getCore().getLatestSchema().getField("number_p_i").getType() instanceof IntPointField);
-    assertQEx("Can't calculate stats on a PointField without docValues", 
+    assertQEx("Expecting Exception", 
+        "Can't calculate stats on a PointField without docValues", 
         req("q", "*:*", "fl", "id, number_p_i", "stats", "true", "stats.field", "number_p_i"), 
         SolrException.ErrorCode.BAD_REQUEST);
   }
   
   @Test
   public void testIntPointGrouping() throws Exception {
-    
-  }
-  
-  @Test
-  public void testIntPointJsonFacet() throws Exception {
     
   }
   
@@ -446,7 +455,8 @@ public class TestPointFields extends SolrTestCaseJ4 {
     
     assertFalse(h.getCore().getLatestSchema().getField(nonDocValuesField).hasDocValues());
     assertTrue(h.getCore().getLatestSchema().getField(nonDocValuesField).getType() instanceof IntPointField);
-    assertQEx("Can't facet on a PointField without docValues", 
+    assertQEx("Expecting Exception", 
+        "Can't facet on a PointField without docValues", 
         req("q", "*:*", "fl", "id, " + nonDocValuesField, "facet", "true", "facet.field", nonDocValuesField), 
         SolrException.ErrorCode.BAD_REQUEST);
   }
@@ -576,13 +586,21 @@ public class TestPointFields extends SolrTestCaseJ4 {
     assertTrue(h.getCore().getLatestSchema().getField(nonDocValuesField).multiValued());
     assertTrue(h.getCore().getLatestSchema().getField(nonDocValuesField).getType() instanceof IntPointField);
 
-    function = "field(" + nonDocValuesField + ", min)";
+    function = "field(" + nonDocValuesField + ",min)";
     
-    assertQEx("Point fields can't use FieldCache. Use docValues=true for field: " + nonDocValuesField, 
-        req("q", "*:*", "fl", "id", "sort", function + " asc"), 
+    assertQEx("Expecting Exception", 
+        "sort param could not be parsed as a query", 
+        req("q", "*:*", "fl", "id", "sort", function + " desc"), 
         SolrException.ErrorCode.BAD_REQUEST);
     
-    assertQEx("Point fields can't use FieldCache. Use docValues=true for field: " + nonDocValuesField, 
+    assertQEx("Expecting Exception", 
+        "docValues='true' is required to select 'min' value from multivalued field (" + nonDocValuesField + ") at query time", 
+        req("q", "*:*", "fl", "id, " + function), 
+        SolrException.ErrorCode.BAD_REQUEST);
+    
+    function = "field(" + docValuesField + ",foo)";
+    assertQEx("Expecting Exception", 
+        "Multi-Valued field selector 'foo' not supported", 
         req("q", "*:*", "fl", "id, " + function), 
         SolrException.ErrorCode.BAD_REQUEST);
   }

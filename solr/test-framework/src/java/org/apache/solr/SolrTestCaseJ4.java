@@ -913,7 +913,7 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
 
   public static void assertQEx(String message, SolrQueryRequest req, SolrException.ErrorCode code ) {
     try {
-      ignoreException(".");
+//      ignoreException(".");
       h.query(req);
       fail( message );
     } catch (SolrException e) {
@@ -933,7 +933,7 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
    */
   public static void assertQEx(String failMessage, String exceptionMessage, SolrQueryRequest req, SolrException.ErrorCode code ) {
     try {
-      ignoreException(".");
+//      ignoreException(".");
       h.query(req);
       fail( failMessage );
     } catch (SolrException e) {

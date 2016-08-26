@@ -151,7 +151,7 @@ public class TestJoin extends SolrTestCaseJ4 {
     // increase test effectiveness by avoiding 0 resultsets much of the time.
     String[][] compat = new String[][] {
         {"small_s","small2_s","small2_ss","small3_ss"},
-        {"small_i","small2_i","small2_is","small3_is"}
+        {"small_i","small2_i","small2_is","small3_is", "small_i_dv", "small_is_dv"}
     };
 
 
@@ -169,6 +169,8 @@ public class TestJoin extends SolrTestCaseJ4 {
       types.add(new FldType("small2_i",ZERO_ONE, new IRange(0,5+indexSize/3)));
       types.add(new FldType("small2_is",ZERO_TWO, new IRange(0,5+indexSize/3)));
       types.add(new FldType("small3_is",new IRange(0,25), new IRange(0,100)));
+      types.add(new FldType("small_i_dv",ZERO_ONE, new IRange(0,5+indexSize/3)));
+      types.add(new FldType("small_is_dv",ZERO_ONE, new IRange(0,5+indexSize/3)));
 
       clearIndex();
       Map<Comparable, Doc> model = indexDocs(types, null, indexSize);

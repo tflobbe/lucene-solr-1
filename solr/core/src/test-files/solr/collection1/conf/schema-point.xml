@@ -96,6 +96,8 @@
    <dynamicField name="*_p_i_dv"  type="pint"    indexed="true"  stored="true" docValues="true"/>
    <dynamicField name="*_p_i_mv"  type="pint"    indexed="true"  stored="true" multiValued="true"/>
    <dynamicField name="*_p_i_mv_dv"  type="pint"    indexed="true"  stored="true" docValues="true" multiValued="true"/>
+   <dynamicField name="*_p_i_ni_dv"  type="pint"    indexed="false"  stored="true" docValues="true"/>
+   <dynamicField name="*_p_i_ni_mv_dv"  type="pint"    indexed="false"  stored="true" docValues="true" multiValued="true"/>
    <!--  dynamicField name="*_l"  type="plong"   indexed="true"  stored="true"/>
    <dynamicField name="*_f"  type="pfloat"  indexed="true"  stored="true"/>
    <dynamicField name="*_d"  type="pdouble" indexed="true"  stored="true"/>

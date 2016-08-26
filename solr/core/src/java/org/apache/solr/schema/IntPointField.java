@@ -23,6 +23,7 @@ import java.util.Map;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
@@ -38,8 +39,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.CharsRef;
-import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.mutable.MutableValue;
 import org.apache.lucene.util.mutable.MutableValueInt;
 import org.apache.solr.search.QParser;
@@ -51,27 +50,27 @@ import org.slf4j.LoggerFactory;
  * A numeric field that can contain 32-bit signed two's complement integer values.
  *
  * <ul>
- *  <li>Min Value Allowed: -2147483648</li>
- *  <li>Max Value Allowed: 2147483647</li>
+ * <li>Min Value Allowed: -2147483648</li>
+ * <li>Max Value Allowed: 2147483647</li>
  * </ul>
  * 
  * @see Integer
  */
 public class IntPointField extends PointField implements IntValueFieldType {
-  
+
   private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
-  
+
   public IntPointField() {
     super(Integer.BYTES);
   }
 
   {
-    type=PointTypes.INTEGER;
+    type = PointTypes.INTEGER;
   }
 
   @Override
   public Object toNativeType(Object val) {
-    if(val==null) return null;
+    if (val == null) return null;
     if (val instanceof Number) return ((Number) val).intValue();
     try {
       if (val instanceof String) return Integer.parseInt((String) val);
@@ -81,9 +80,10 @@ public class IntPointField extends PointField implements IntValueFieldType {
     }
     return super.toNativeType(val);
   }
-  
-  public Query getRangeQuery(QParser parser, SchemaField field, String min, String max, boolean minInclusive, boolean maxInclusive) {
-    int actualMin,actualMax;
+
+  public Query getRangeQuery(QParser parser, SchemaField field, String min, String max, boolean minInclusive,
+      boolean maxInclusive) {
+    int actualMin, actualMax;
     if (min == null) {
       actualMin = Integer.MIN_VALUE;
     } else {
@@ -102,17 +102,17 @@ public class IntPointField extends PointField implements IntValueFieldType {
     }
     return IntPoint.newRangeQuery(field.getName(), actualMin, actualMax);
   }
-  
+
   @Override
   protected ValueSource getSingleValueSource(SortedSetSelector.Type choice, SchemaField f) {
     return new SortedSetFieldSource(f.getName(), choice) {
       @Override
       public FunctionValues getValues(Map context, LeafReaderContext readerContext) throws IOException {
         SortedSetFieldSource thisAsSortedSetFieldSource = this; // needed for nested anon class ref
-        
+
         SortedSetDocValues sortedSet = DocValues.getSortedSet(readerContext.reader(), field);
         SortedDocValues view = SortedSetSelector.wrap(sortedSet, selector);
-        
+
         return new IntDocValues(thisAsSortedSetFieldSource) {
           @Override
           public int intVal(int doc) {
@@ -134,17 +134,17 @@ public class IntPointField extends PointField implements IntValueFieldType {
           public ValueFiller getValueFiller() {
             return new ValueFiller() {
               private final MutableValueInt mval = new MutableValueInt();
-              
+
               @Override
               public MutableValue getValue() {
                 return mval;
               }
-              
+
               @Override
               public void fillValue(int doc) {
-                // micro optimized (eliminate at least one redudnent ord check) 
-                //mval.exists = exists(doc);
-                //mval.value = mval.exists ? intVal(doc) : 0;
+                // micro optimized (eliminate at least one redudnent ord check)
+                // mval.exists = exists(doc);
+                // mval.value = mval.exists ? intVal(doc) : 0;
                 //
                 BytesRef bytes = view.get(doc);
                 mval.exists = (0 == bytes.length);
@@ -156,7 +156,7 @@ public class IntPointField extends PointField implements IntValueFieldType {
       }
     };
   }
-  
+
   @Override
   public Object toObject(SchemaField sf, BytesRef term) {
     return IntPoint.decodeDimension(term.bytes, term.offset);
@@ -164,30 +164,27 @@ public class IntPointField extends PointField implements IntValueFieldType {
 
   @Override
   protected Query getExactQuery(QParser parser, SchemaField field, String externalVal) {
-    //TODO: better handling of string->int conversion
+    // TODO: better handling of string->int conversion
     return IntPoint.newExactQuery(field.getName(), Integer.parseInt(externalVal));
   }
-  
+
   @Override
-  public CharsRef indexedToReadable(BytesRef indexedForm, CharsRefBuilder charsRef) {
-    final String value = Integer.toString(IntPoint.decodeDimension(indexedForm.bytes, indexedForm.offset));
-    charsRef.grow(value.length());
-    charsRef.setLength(value.length());
-    value.getChars(0, charsRef.length(), charsRef.chars(), 0);
-    return charsRef.get();
+  protected String indexedToReadable(BytesRef indexedForm) {
+    return Integer.toString(IntPoint.decodeDimension(indexedForm.bytes, indexedForm.offset));
   }
-  
-  @Override
-  public String indexedToReadable(String indexedForm) {
-    final BytesRef indexedFormRef = new BytesRef(indexedForm);
-    return Integer.toString(IntPoint.decodeDimension(indexedFormRef.bytes, 0));
-  }
-  
+
   @Override
   public void readableToIndexed(CharSequence val, BytesRefBuilder result) {
     result.grow(Integer.BYTES);
     result.setLength(Integer.BYTES);
-    IntPoint.encodeDimension(Integer.parseInt(val.toString()), result.bytes(), 0);// TODO:0?
+    IntPoint.encodeDimension(Integer.parseInt(val.toString()), result.bytes(), 0);
+  }
+  
+  @Override
+  protected BytesRef storedToIndexedByteRef(IndexableField f) {
+    BytesRef bytes = new BytesRef(new byte[Integer.BYTES], 0, Integer.BYTES);
+    IntPoint.encodeDimension(f.numericValue().intValue(), bytes.bytes, 0);
+    return bytes;
   }
   
 
@@ -196,20 +193,19 @@ public class IntPointField extends PointField implements IntValueFieldType {
     field.checkSortability();
 
     Object missingValue = null;
-    boolean sortMissingLast  = field.sortMissingLast();
+    boolean sortMissingLast = field.sortMissingLast();
     boolean sortMissingFirst = field.sortMissingFirst();
 
     if (sortMissingLast) {
       missingValue = top ? Integer.MIN_VALUE : Integer.MAX_VALUE;
-    }
-    else if( sortMissingFirst ) {
+    } else if (sortMissingFirst) {
       missingValue = top ? Integer.MAX_VALUE : Integer.MIN_VALUE;
     }
-    SortField sf = new SortField( field.getName(), SortField.Type.INT, top);
+    SortField sf = new SortField(field.getName(), SortField.Type.INT, top);
     sf.setMissingValue(missingValue);
     return sf;
   }
-  
+
   @Override
   public Type getUninversionType(SchemaField sf) {
     if (sf.multiValued()) {
@@ -224,20 +220,25 @@ public class IntPointField extends PointField implements IntValueFieldType {
     field.checkFieldCacheSource();
     return new IntFieldSource(field.getName());
   }
-  
+
   @Override
   public FieldType.LegacyNumericType getNumericType() {
     return FieldType.LegacyNumericType.INT;
   }
-  
+
   @Override
   public IndexableField createField(SchemaField field, Object value, float boost) {
     if (!isFieldUsed(field)) return null;
-    
+
     if (boost != 1.0 && log.isTraceEnabled()) {
       log.trace("Can't use document/field boost for PointField. Field: " + field.getName() + ", boost: " + boost);
     }
-    int intValue = (value instanceof Number) ? ((Number)value).intValue(): Integer.parseInt(value.toString());
+    int intValue = (value instanceof Number) ? ((Number) value).intValue() : Integer.parseInt(value.toString());
     return new IntPoint(field.getName(), intValue);
+  }
+
+  @Override
+  protected StoredField getStoredField(SchemaField sf, Object value) {
+    return new StoredField(sf.getName(), (Integer) this.toNativeType(value));
   }
 }
