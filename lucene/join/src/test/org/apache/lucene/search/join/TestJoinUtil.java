@@ -37,12 +37,9 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType.LegacyNumericType;
 import org.apache.lucene.document.FloatDocValuesField;
 import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.IntPoint;
-import org.apache.lucene.document.LegacyIntField;
-import org.apache.lucene.document.LegacyLongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -57,8 +54,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.MultiDocValues;
 import org.apache.lucene.index.MultiDocValues.OrdinalMap;
+import org.apache.lucene.index.MultiDocValues;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
@@ -91,7 +88,6 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LuceneTestCase;
@@ -487,7 +483,8 @@ public class TestJoinUtil extends LuceneTestCase {
             return new FilterScorer(fieldScorer, this) {
               @Override
               public float score() throws IOException {
-                return (float) price.get(in.docID());
+                assertEquals(in.docID(), price.nextDoc());
+                return (float) price.longValue();
               }
             };
           }
@@ -971,7 +968,7 @@ public class TestJoinUtil extends LuceneTestCase {
           final String fromField = from ? "from":"to";
           final String toField = from ? "to":"from";
 
-          int surpriseMe = random().nextInt(3);
+          int surpriseMe = random().nextInt(2);
           switch (surpriseMe) {
             case 0:
               Class<? extends Number> numType;
@@ -992,10 +989,6 @@ public class TestJoinUtil extends LuceneTestCase {
               joinQuery = JoinUtil.createJoinQuery(fromField + suffix, muliValsQuery, toField + suffix, numType, actualQuery, indexSearcher, scoreMode);
               break;
             case 1:
-              final LegacyNumericType legacyNumType = random().nextBoolean() ? LegacyNumericType.INT: LegacyNumericType.LONG ;
-              joinQuery = JoinUtil.createJoinQuery(fromField+legacyNumType, muliValsQuery, toField+legacyNumType, legacyNumType, actualQuery, indexSearcher, scoreMode);
-              break;
-            case 2:
               joinQuery = JoinUtil.createJoinQuery(fromField, muliValsQuery, toField, actualQuery, indexSearcher, scoreMode);
               break;
             default:
@@ -1189,15 +1182,19 @@ public class TestJoinUtil extends LuceneTestCase {
 
           @Override
           public void collect(int doc) throws IOException {
-            docTermOrds.setDocument(doc);
-            long ord;
-            while ((ord = docTermOrds.nextOrd()) != SortedSetDocValues.NO_MORE_ORDS) {
-              final BytesRef joinValue = docTermOrds.lookupOrd(ord);
-              JoinScore joinScore = joinValueToJoinScores.get(joinValue);
-              if (joinScore == null) {
-                joinValueToJoinScores.put(BytesRef.deepCopyOf(joinValue), joinScore = new JoinScore());
+            if (doc > docTermOrds.docID()) {
+              docTermOrds.advance(doc);
+            }
+            if (doc == docTermOrds.docID()) {
+              long ord;
+              while ((ord = docTermOrds.nextOrd()) != SortedSetDocValues.NO_MORE_ORDS) {
+                final BytesRef joinValue = docTermOrds.lookupOrd(ord);
+                JoinScore joinScore = joinValueToJoinScores.get(joinValue);
+                if (joinScore == null) {
+                  joinValueToJoinScores.put(BytesRef.deepCopyOf(joinValue), joinScore = new JoinScore());
+                }
+                joinScore.addScore(scorer.score());
               }
-              joinScore.addScore(scorer.score());
             }
           }
 
@@ -1221,12 +1218,17 @@ public class TestJoinUtil extends LuceneTestCase {
 
           private Scorer scorer;
           private BinaryDocValues terms;
-          private Bits docsWithField;
 
           @Override
           public void collect(int doc) throws IOException {
-            final BytesRef joinValue = terms.get(doc);
-            if (joinValue.length == 0 && !docsWithField.get(doc)) {
+            if (doc > terms.docID()) {
+              terms.advance(doc);
+            }
+            final BytesRef joinValue;
+            if (doc == terms.docID()) {
+              joinValue = terms.binaryValue();
+            } else {
+              // missing;
               return;
             }
 
@@ -1243,7 +1245,6 @@ public class TestJoinUtil extends LuceneTestCase {
           @Override
           protected void doSetNextReader(LeafReaderContext context) throws IOException {
             terms = DocValues.getBinary(context.reader(), fromField);
-            docsWithField = DocValues.getDocsWithField(context.reader(), fromField);
           }
 
           @Override
@@ -1288,8 +1289,17 @@ public class TestJoinUtil extends LuceneTestCase {
           private int docBase;
 
           @Override
-          public void collect(int doc) {
-            final BytesRef joinValue = terms.get(doc);
+          public void collect(int doc) throws IOException {
+            if (doc > terms.docID()) {
+              terms.advance(doc);
+            }
+            final BytesRef joinValue;
+            if (doc == terms.docID()) {
+              joinValue = terms.binaryValue();
+            } else {
+              // missing;
+              joinValue = new BytesRef(BytesRef.EMPTY_BYTES);
+            }
             JoinScore joinScore = joinValueToJoinScores.get(joinValue);
             if (joinScore == null) {
               return;
@@ -1336,26 +1346,24 @@ public class TestJoinUtil extends LuceneTestCase {
     document.add(newTextField(random, fieldName, linkValue, Field.Store.NO));
 
     final int linkInt = Integer.parseUnsignedInt(linkValue,16);
-    document.add(new LegacyIntField(fieldName + LegacyNumericType.INT, linkInt, Field.Store.NO));
-    document.add(new IntPoint(fieldName + LegacyNumericType.INT, linkInt));
+    document.add(new IntPoint(fieldName + "INT", linkInt));
     document.add(new FloatPoint(fieldName + "FLOAT", linkInt));
 
     final long linkLong = linkInt<<32 | linkInt;
-    document.add(new LegacyLongField(fieldName +  LegacyNumericType.LONG, linkLong, Field.Store.NO));
-    document.add(new LongPoint(fieldName + LegacyNumericType.LONG, linkLong));
+    document.add(new LongPoint(fieldName + "LONG", linkLong));
     document.add(new DoublePoint(fieldName + "DOUBLE", linkLong));
 
     if (multipleValuesPerDocument) {
       document.add(new SortedSetDocValuesField(fieldName, new BytesRef(linkValue)));
-      document.add(new SortedNumericDocValuesField(fieldName+ LegacyNumericType.INT, linkInt));
+      document.add(new SortedNumericDocValuesField(fieldName+ "INT", linkInt));
       document.add(new SortedNumericDocValuesField(fieldName+ "FLOAT", Float.floatToRawIntBits(linkInt)));
-      document.add(new SortedNumericDocValuesField(fieldName+ LegacyNumericType.LONG, linkLong));
+      document.add(new SortedNumericDocValuesField(fieldName+ "LONG", linkLong));
       document.add(new SortedNumericDocValuesField(fieldName+ "DOUBLE", Double.doubleToRawLongBits(linkLong)));
     } else {
       document.add(new SortedDocValuesField(fieldName, new BytesRef(linkValue)));
-      document.add(new NumericDocValuesField(fieldName+ LegacyNumericType.INT, linkInt));
+      document.add(new NumericDocValuesField(fieldName+ "INT", linkInt));
       document.add(new FloatDocValuesField(fieldName+ "FLOAT", linkInt));
-      document.add(new NumericDocValuesField(fieldName+ LegacyNumericType.LONG, linkLong));
+      document.add(new NumericDocValuesField(fieldName+ "LONG", linkLong));
       document.add(new DoubleDocValuesField(fieldName+ "DOUBLE", linkLong));
     }
     if (globalOrdinalJoin) {

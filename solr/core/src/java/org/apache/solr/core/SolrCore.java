@@ -439,11 +439,11 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
       if ("firstSearcher".equals(event)) {
         SolrEventListener obj = createInitInstance(info, clazz, label, null);
         firstSearcherListeners.add(obj);
-        log.info("[{}] Added SolrEventListener for firstSearcher: [{}]", logid, obj);
+        log.debug("[{}] Added SolrEventListener for firstSearcher: [{}]", logid, obj);
       } else if ("newSearcher".equals(event)) {
         SolrEventListener obj = createInitInstance(info, clazz, label, null);
         newSearcherListeners.add(obj);
-        log.info("[{}] Added SolrEventListener for newSearcher: [{}]", logid, obj);
+        log.debug("[{}] Added SolrEventListener for newSearcher: [{}]", logid, obj);
       }
     }
   }
@@ -521,13 +521,13 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
     final PluginInfo info = solrConfig.getPluginInfo(DirectoryFactory.class.getName());
     final DirectoryFactory dirFactory;
     if (info != null) {
-      log.info(info.className);
+      log.debug(info.className);
       dirFactory = getResourceLoader().newInstance(info.className, DirectoryFactory.class);
       // allow DirectoryFactory instances to access the CoreContainer
       dirFactory.initCoreContainer(getCoreDescriptor().getCoreContainer());
       dirFactory.init(info.initArgs);
     } else {
-      log.info("solr.NRTCachingDirectoryFactory");
+      log.debug("solr.NRTCachingDirectoryFactory");
       dirFactory = new NRTCachingDirectoryFactory();
       dirFactory.initCoreContainer(getCoreDescriptor().getCoreContainer());
     }
@@ -549,6 +549,24 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
   // protect via synchronized(SolrCore.class)
   private static Set<String> dirs = new HashSet<>();
 
+  /**
+   * Returns <code>true</code> iff the index in the named directory is
+   * currently locked.
+   * @param directory the directory to check for a lock
+   * @throws IOException if there is a low-level IO error
+   * @deprecated Use of this method can only lead to race conditions. Try
+   *             to actually obtain a lock instead.
+   */
+  @Deprecated
+  private static boolean isWriterLocked(Directory directory) throws IOException {
+    try {
+      directory.obtainLock(IndexWriter.WRITE_LOCK_NAME).close();
+      return false;
+    } catch (LockObtainFailedException failed) {
+      return true;
+    }
+  }
+
   void initIndex(boolean reload) throws IOException {
 
     String indexDir = getNewIndexDir();
@@ -564,7 +582,7 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
       final String lockType = getSolrConfig().indexConfig.lockType;
       Directory dir = directoryFactory.get(indexDir, DirContext.DEFAULT, lockType);
       try {
-        if (IndexWriter.isLocked(dir)) {
+        if (isWriterLocked(dir)) {
           log.error(logid + "Solr index directory '{}' is locked (lockType={}).  Throwing exception.",
                     indexDir, lockType);
           throw new LockObtainFailedException
@@ -833,7 +851,7 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
       log.debug("Registering JMX bean [{}] from directory factory.", bean.getName());
       // Not worried about concurrency, so no reason to use putIfAbsent
       if (infoRegistry.containsKey(bean.getName())){
-        log.info("Ignoring JMX bean [{}] due to name conflict.", bean.getName());
+        log.debug("Ignoring JMX bean [{}] due to name conflict.", bean.getName());
       } else {
         infoRegistry.put(bean.getName(), bean);
       }
@@ -941,7 +959,7 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
     if (config.jmxConfig.enabled) {
       return new JmxMonitoredMap<String, SolrInfoMBean>(name, String.valueOf(this.hashCode()), config.jmxConfig);
     } else  {
-      log.info("JMX monitoring not detected for core: " + name);
+      log.debug("JMX monitoring not detected for core: " + name);
       return new ConcurrentHashMap<>();
     }
   }
@@ -1056,9 +1074,9 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
     if (pluginInfo != null && pluginInfo.className != null && pluginInfo.className.length() > 0) {
       cache = createInitInstance(pluginInfo, StatsCache.class, null,
           LocalStatsCache.class.getName());
-      log.info("Using statsCache impl: " + cache.getClass().getName());
+      log.debug("Using statsCache impl: " + cache.getClass().getName());
     } else {
-      log.info("Using default statsCache cache: " + LocalStatsCache.class.getName());
+      log.debug("Using default statsCache cache: " + LocalStatsCache.class.getName());
       cache = new LocalStatsCache();
     }
     return cache;
@@ -1081,7 +1099,7 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
       def = map.get(null);
     }
     if (def == null) {
-      log.info("no updateRequestProcessorChain defined as default, creating implicit default");
+      log.debug("no updateRequestProcessorChain defined as default, creating implicit default");
       // construct the default chain
       UpdateRequestProcessorFactory[] factories = new UpdateRequestProcessorFactory[]{
               new LogUpdateProcessorFactory(),
@@ -1627,7 +1645,7 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
             // but log a message about it to minimize confusion
 
             newestSearcher.incref();
-            log.info("SolrIndexSearcher has not changed - not re-opening: " + newestSearcher.get().getName());
+            log.debug("SolrIndexSearcher has not changed - not re-opening: " + newestSearcher.get().getName());
             return newestSearcher;
 
           } // ELSE: open a new searcher against the old reader...
@@ -2059,7 +2077,6 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
       if (_searcher != null) {
         _searcher.decref();   // dec refcount for this._searcher
         _searcher = null; // isClosed() does check this
-        infoRegistry.remove("currentSearcher");
       }
     }
   }
@@ -2197,6 +2214,12 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
     m.put("smile", new SmileResponseWriter());
     m.put(ReplicationHandler.FILE_STREAM, getFileStreamWriter());
     DEFAULT_RESPONSE_WRITERS = Collections.unmodifiableMap(m);
+    try {
+      m.put("xlsx",
+          (QueryResponseWriter) Class.forName("org.apache.solr.handler.extraction.XLSXResponseWriter").newInstance());
+    } catch (Exception e) {
+      //don't worry; solrcell contrib not in class path
+    }
   }
 
   private static BinaryResponseWriter getFileStreamWriter() {
@@ -2219,7 +2242,7 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
   }
 
   public interface RawWriter {
-    public void write(OutputStream os) throws IOException ;
+    void write(OutputStream os) throws IOException ;
   }
 
   /** Configure the query response writers. There will always be a default writer; additional
@@ -2609,7 +2632,7 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
         return false;
       }
       if (stat.getVersion() >  currentVersion) {
-        log.info(zkPath+" is stale will need an update from {} to {}", currentVersion,stat.getVersion());
+        log.debug(zkPath+" is stale will need an update from {} to {}", currentVersion,stat.getVersion());
         return true;
       }
       return false;
@@ -2630,7 +2653,7 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
     final String coreName = getName();
     if (myDirFactory != null && myDataDir != null && myIndexDir != null) {
       Thread cleanupThread = new Thread(() -> {
-        log.info("Looking for old index directories to cleanup for core {} in {}", coreName, myDataDir);
+        log.debug("Looking for old index directories to cleanup for core {} in {}", coreName, myDataDir);
         try {
           myDirFactory.cleanupOldIndexDirectories(myDataDir, myIndexDir);
         } catch (Exception exc) {

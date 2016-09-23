@@ -36,6 +36,8 @@ import java.lang.invoke.MethodHandles;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -110,10 +112,22 @@ public class SolrDispatchFilter extends BaseSolrFilter {
 
   public static final String SOLRHOME_ATTRIBUTE = "solr.solr.home";
 
+  public static final String SOLR_LOG_MUTECONSOLE = "solr.log.muteconsole";
+
+  public static final String SOLR_LOG_LEVEL = "solr.log.level";
+
   @Override
   public void init(FilterConfig config) throws ServletException
   {
-    log.info("SolrDispatchFilter.init(): {}", this.getClass().getClassLoader());
+    log.trace("SolrDispatchFilter.init(): {}", this.getClass().getClassLoader());
+    String muteConsole = System.getProperty(SOLR_LOG_MUTECONSOLE);
+    if (muteConsole != null && !Arrays.asList("false","0","off","no").contains(muteConsole.toLowerCase(Locale.ROOT))) {
+      StartupLoggingUtils.muteConsole();
+    }
+    String logLevel = System.getProperty(SOLR_LOG_LEVEL);
+    if (logLevel != null) {
+      StartupLoggingUtils.changeLogLevel(logLevel);
+    }
 
     String exclude = config.getInitParameter("excludePatterns");
     if(exclude != null) {
@@ -134,7 +148,7 @@ public class SolrDispatchFilter extends BaseSolrFilter {
       this.cores = createCoreContainer(solrHome == null ? SolrResourceLoader.locateSolrHome() : Paths.get(solrHome),
                                        extraProperties);
       this.httpClient = cores.getUpdateShardHandler().getHttpClient();
-      log.info("user.dir=" + System.getProperty("user.dir"));
+      log.debug("user.dir=" + System.getProperty("user.dir"));
     }
     catch( Throwable t ) {
       // catch this so our filter still works
@@ -145,7 +159,7 @@ public class SolrDispatchFilter extends BaseSolrFilter {
       }
     }
 
-    log.info("SolrDispatchFilter.init() done");
+    log.trace("SolrDispatchFilter.init() done");
   }
 
   /**
@@ -302,6 +316,12 @@ public class SolrDispatchFilter extends BaseSolrFilter {
     if (authenticationPlugin == null) {
       return true;
     } else {
+      try {
+        if (PKIAuthenticationPlugin.PATH.equals(((HttpServletRequest) request).getPathInfo())) return true;
+      } catch (Exception e) {
+        log.error("Unexpected error ", e);
+      }
+
       //special case when solr is securing inter-node requests
       String header = ((HttpServletRequest) request).getHeader(PKIAuthenticationPlugin.HEADER);
       if (header != null && cores.getPkiAuthenticationPlugin() != null)

@@ -188,6 +188,11 @@ public class PeerSync  {
           log.debug(msg() + "startingVersions=" + startingVersions.size() + " " + startingVersions);
         }
       }
+      // check if we already in sync to begin with 
+      if(doFingerprint && alreadyInSync()) {
+        return true;
+      }
+      
       
       // Fire off the requests before getting our own recent updates (for better concurrency)
       // This also allows us to avoid getting updates we don't need... if we got our updates and then got their updates,
@@ -277,6 +282,51 @@ public class PeerSync  {
       MDCLoggingContext.clear();
     }
   }
+
+  /**
+   * Check if we are already in sync. Simple fingerprint comparison should do
+   */
+  private boolean alreadyInSync() {
+    for (String replica : replicas) {
+      requestFingerprint(replica);
+    }
+    
+    for (;;) {
+      ShardResponse srsp = shardHandler.takeCompletedOrError();
+      if (srsp == null) break;
+      
+      try {
+        IndexFingerprint otherFingerprint = IndexFingerprint.fromObject(srsp.getSolrResponse().getResponse().get("fingerprint"));
+        IndexFingerprint ourFingerprint = IndexFingerprint.getFingerprint(core, Long.MAX_VALUE);
+        if(IndexFingerprint.compare(otherFingerprint, ourFingerprint) == 0) {
+          log.info("We are already in sync. No need to do a PeerSync ");
+          return true;
+        }
+      } catch(IOException e) {
+        log.warn("Could not cofirm if we are already in sync. Continue with PeerSync");
+      }
+    }
+    
+    return false;
+  }
+  
+  
+  private void requestFingerprint(String replica) {
+    SyncShardRequest sreq = new SyncShardRequest();
+    requests.add(sreq);
+
+    sreq.shards = new String[]{replica};
+    sreq.actualShards = sreq.shards;
+    sreq.params = new ModifiableSolrParams();
+    sreq.params = new ModifiableSolrParams();
+    sreq.params.set("qt","/get");
+    sreq.params.set("distrib",false);
+    sreq.params.set("getFingerprint", String.valueOf(Long.MAX_VALUE));
+    
+    shardHandler.submit(sreq, replica, sreq.params);
+  }
+  
+  
   
   private void requestVersions(String replica) {
     SyncShardRequest sreq = new SyncShardRequest();
@@ -564,9 +614,14 @@ public class PeerSync  {
   private boolean compareFingerprint(SyncShardRequest sreq) {
     if (sreq.fingerprint == null) return true;
     try {
-      IndexFingerprint ourFingerprint = IndexFingerprint.getFingerprint(core, Long.MAX_VALUE);
-      int cmp = IndexFingerprint.compare(ourFingerprint, sreq.fingerprint);
-      log.info("Fingerprint comparison: " + cmp);
+      // check our fingerprint only upto the max version in the other fingerprint. 
+      // Otherwise for missed updates (look at missed update test in PeerSyncTest) ourFingerprint won't match with otherFingerprint   
+      IndexFingerprint ourFingerprint = IndexFingerprint.getFingerprint(core, sreq.fingerprint.getMaxVersionSpecified());
+      int cmp = IndexFingerprint.compare(sreq.fingerprint, ourFingerprint);
+      log.info("Fingerprint comparison: {}" , cmp);
+      if(cmp != 0) {
+        log.info("Other fingerprint: {}, Our fingerprint: {}", sreq.fingerprint , ourFingerprint);
+      }
       return cmp == 0;  // currently, we only check for equality...
     } catch(IOException e){
       log.error(msg() + "Error getting index fingerprint", e);
@@ -588,6 +643,12 @@ public class PeerSync  {
     sreq.params.set("distrib", false);
     sreq.params.set("getUpdates", versionsAndRanges);
     sreq.params.set("onlyIfActive", onlyIfActive);
+    
+    // fingerprint should really be requested only for the maxversion  we are requesting updates for
+    // In case updates are coming in while node is coming up after restart, node would have already
+    // buffered some of the updates. fingerprint we requested with versions would reflect versions
+    // in our buffer as well and will definitely cause a mismatch
+    sreq.params.set("fingerprint",doFingerprint);
     sreq.responses.clear();  // needs to be zeroed for correct correlation to occur
 
     shardHandler.submit(sreq, sreq.shards[0], sreq.params);
@@ -602,9 +663,17 @@ public class PeerSync  {
 
     SyncShardRequest sreq = (SyncShardRequest) srsp.getShardRequest();
     if (updates.size() < sreq.totalRequestedUpdates) {
-      log.error(msg() + " Requested " + sreq.requestedUpdates.size() + " updates from " + sreq.shards[0] + " but retrieved " + updates.size());
+      log.error(msg() + " Requested " + sreq.totalRequestedUpdates + " updates from " + sreq.shards[0] + " but retrieved " + updates.size());
       return false;
     }
+    
+    // overwrite fingerprint we saved in 'handleVersions()'   
+    Object fingerprint = srsp.getSolrResponse().getResponse().get("fingerprint");
+
+    if (fingerprint != null) {
+      sreq.fingerprint = IndexFingerprint.fromObject(fingerprint);
+    }
+
 
     ModifiableSolrParams params = new ModifiableSolrParams();
     params.set(DISTRIB_UPDATE_PARAM, FROMLEADER.toString());

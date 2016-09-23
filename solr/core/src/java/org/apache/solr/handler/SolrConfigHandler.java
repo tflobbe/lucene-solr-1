@@ -168,7 +168,7 @@ public class SolrConfigHandler extends RequestHandlerBase implements SolrCoreAwa
         resp.add("config", getConfigDetails());
       } else {
         if (ConfigOverlay.NAME.equals(parts.get(1))) {
-          resp.add(ConfigOverlay.NAME, req.getCore().getSolrConfig().getOverlay().toMap());
+          resp.add(ConfigOverlay.NAME, req.getCore().getSolrConfig().getOverlay());
         } else if (RequestParams.NAME.equals(parts.get(1))) {
           if (parts.size() == 3) {
             RequestParams params = req.getCore().getSolrConfig().getRequestParams();
@@ -176,11 +176,11 @@ public class SolrConfigHandler extends RequestHandlerBase implements SolrCoreAwa
             Map m = new LinkedHashMap<>();
             m.put(ZNODEVER, params.getZnodeVersion());
             if (p != null) {
-              m.put(RequestParams.NAME, makeMap(parts.get(2), p.toMap()));
+              m.put(RequestParams.NAME, makeMap(parts.get(2), p.toMap(new LinkedHashMap<>())));
             }
             resp.add(SolrQueryResponse.NAME, m);
           } else {
-            resp.add(SolrQueryResponse.NAME, req.getCore().getSolrConfig().getRequestParams().toMap());
+            resp.add(SolrQueryResponse.NAME, req.getCore().getSolrConfig().getRequestParams());
           }
 
         } else {
@@ -188,12 +188,12 @@ public class SolrConfigHandler extends RequestHandlerBase implements SolrCoreAwa
             resp.add(ZNODEVER, Utils.makeMap(
                 ConfigOverlay.NAME, req.getCore().getSolrConfig().getOverlay().getZnodeVersion(),
                 RequestParams.NAME, req.getCore().getSolrConfig().getRequestParams().getZnodeVersion()));
-            boolean checkStale = false;
+            boolean isStale = false;
             int expectedVersion = req.getParams().getInt(ConfigOverlay.NAME, -1);
             int actualVersion = req.getCore().getSolrConfig().getOverlay().getZnodeVersion();
             if (expectedVersion > actualVersion) {
               log.info("expecting overlay version {} but my version is {}", expectedVersion, actualVersion);
-              checkStale = true;
+              isStale = true;
             } else if (expectedVersion != -1) {
               log.info("I already have the expected version {} of config", expectedVersion);
             }
@@ -201,11 +201,11 @@ public class SolrConfigHandler extends RequestHandlerBase implements SolrCoreAwa
             actualVersion = req.getCore().getSolrConfig().getRequestParams().getZnodeVersion();
             if (expectedVersion > actualVersion) {
               log.info("expecting params version {} but my version is {}", expectedVersion, actualVersion);
-              checkStale = true;
+              isStale = true;
             } else if (expectedVersion != -1) {
               log.info("I already have the expected version {} of params", expectedVersion);
             }
-            if (checkStale && req.getCore().getResourceLoader() instanceof ZkSolrResourceLoader) {
+            if (isStale && req.getCore().getResourceLoader() instanceof ZkSolrResourceLoader) {
               new Thread(() -> {
                 if (!reloadLock.tryLock()) {
                   log.info("Another reload is in progress . Not doing anything");
@@ -221,7 +221,7 @@ public class SolrConfigHandler extends RequestHandlerBase implements SolrCoreAwa
                 }
               }, SolrConfigHandler.class.getSimpleName() + "-refreshconf").start();
             } else {
-              log.info("checkStale {} , resourceloader {}", checkStale, req.getCore().getResourceLoader().getClass().getName());
+              log.info("isStale {} , resourceloader {}", isStale, req.getCore().getResourceLoader().getClass().getName());
             }
 
           } else {
@@ -233,14 +233,14 @@ public class SolrConfigHandler extends RequestHandlerBase implements SolrCoreAwa
     }
 
     private Map<String, Object> getConfigDetails() {
-      Map<String, Object> map = req.getCore().getSolrConfig().toMap();
+      Map<String, Object> map = req.getCore().getSolrConfig().toMap(new LinkedHashMap<>());
       Map reqHandlers = (Map) map.get(SolrRequestHandler.TYPE);
       if (reqHandlers == null) map.put(SolrRequestHandler.TYPE, reqHandlers = new LinkedHashMap<>());
       List<PluginInfo> plugins = req.getCore().getImplicitHandlers();
       for (PluginInfo plugin : plugins) {
         if (SolrRequestHandler.TYPE.equals(plugin.type)) {
           if (!reqHandlers.containsKey(plugin.name)) {
-            reqHandlers.put(plugin.name, plugin.toMap());
+            reqHandlers.put(plugin.name, plugin.toMap(new LinkedHashMap<>()));
           }
         }
       }
@@ -287,7 +287,7 @@ public class SolrConfigHandler extends RequestHandlerBase implements SolrCoreAwa
 
             for (Map.Entry<String, Object> entry : map.entrySet()) {
 
-              Map val = null;
+              Map val;
               String key = entry.getKey();
               if (isNullOrEmpty(key)) {
                 op.addError("null key ");
@@ -354,16 +354,13 @@ public class SolrConfigHandler extends RequestHandlerBase implements SolrCoreAwa
         if (ops.isEmpty()) {
           ZkController.touchConfDir(zkLoader);
         } else {
-          log.info("persisting params data : {}", Utils.toJSONString(params.toMap()));
+          log.debug("persisting params data : {}", Utils.toJSONString(params.toMap(new LinkedHashMap<>())));
           int latestVersion = ZkController.persistConfigResourceToZooKeeper(zkLoader,
-              params.getZnodeVersion(),
-              RequestParams.RESOURCE,
-              params.toByteArray(), true);
-          log.info("persisted to version : {} ", latestVersion);
+              params.getZnodeVersion(), RequestParams.RESOURCE, params.toByteArray(), true);
+
+          log.debug("persisted to version : {} ", latestVersion);
           waitForAllReplicasState(req.getCore().getCoreDescriptor().getCloudDescriptor().getCollectionName(),
-              req.getCore().getCoreDescriptor().getCoreContainer().getZkController(),
-              RequestParams.NAME,
-              latestVersion, 30);
+              req.getCore().getCoreDescriptor().getCoreContainer().getZkController(), RequestParams.NAME, latestVersion, 30);
         }
 
       } else {

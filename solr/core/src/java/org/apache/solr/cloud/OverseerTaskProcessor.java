@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 import com.google.common.collect.ImmutableSet;
+import org.apache.commons.io.IOUtils;
 import org.apache.solr.client.solrj.SolrResponse;
 import org.apache.solr.cloud.OverseerTaskQueue.QueueEvent;
 import org.apache.solr.cloud.Overseer.LeaderStatus;
@@ -115,7 +116,7 @@ public class OverseerTaskProcessor implements Runnable, Closeable {
 
   private final Object waitLock = new Object();
 
-  private OverseerMessageHandlerSelector selector;
+  protected OverseerMessageHandlerSelector selector;
 
   private OverseerNodePrioritizer prioritizer;
 
@@ -143,7 +144,7 @@ public class OverseerTaskProcessor implements Runnable, Closeable {
 
   @Override
   public void run() {
-    log.info("Process current queue of overseer operations");
+    log.debug("Process current queue of overseer operations");
     LeaderStatus isLeader = amILeader();
     while (isLeader == LeaderStatus.DONT_KNOW) {
       log.debug("am_i_leader unclear {}", isLeader);
@@ -175,7 +176,9 @@ public class OverseerTaskProcessor implements Runnable, Closeable {
     try {
       prioritizer.prioritizeOverseerNodes(myId);
     } catch (Exception e) {
-      log.error("Unable to prioritize overseer ", e);
+      if (!zkStateReader.getZkClient().isClosed()) {
+        log.error("Unable to prioritize overseer ", e);
+      }
     }
 
     // TODO: Make maxThreads configurable.
@@ -287,7 +290,7 @@ public class OverseerTaskProcessor implements Runnable, Closeable {
               Thread.currentThread().interrupt();
               continue;
             }
-            log.info(messageHandler.getName() + ": Get the message id:" + head.getId() + " message:" + message.toString());
+            log.debug(messageHandler.getName() + ": Get the message id:" + head.getId() + " message:" + message.toString());
             Runner runner = new Runner(messageHandler, message,
                 operation, head, lock);
             tpe.execute(runner);
@@ -328,6 +331,7 @@ public class OverseerTaskProcessor implements Runnable, Closeable {
         ExecutorUtil.shutdownAndAwaitTermination(tpe);
       }
     }
+    IOUtils.closeQuietly(selector);
   }
 
   public static List<String> getSortedOverseerNodeNames(SolrZkClient zk) throws KeeperException, InterruptedException {
@@ -389,9 +393,7 @@ public class OverseerTaskProcessor implements Runnable, Closeable {
       if (e.code() == KeeperException.Code.CONNECTIONLOSS) {
         log.error("", e);
         return LeaderStatus.DONT_KNOW;
-      } else if (e.code() == KeeperException.Code.SESSIONEXPIRED) {
-        log.info("", e);
-      } else {
+      } else if (e.code() != KeeperException.Code.SESSIONEXPIRED) {
         log.warn("", e);
       }
     } catch (InterruptedException e) {
@@ -482,7 +484,7 @@ public class OverseerTaskProcessor implements Runnable, Closeable {
         log.debug("Marked task [{}] as completed.", head.getId());
         printTrackingMaps();
 
-        log.info(messageHandler.getName() + ": Message id:" + head.getId() +
+        log.debug(messageHandler.getName() + ": Message id:" + head.getId() +
             " complete, response:" + response.getResponse().toString());
         success = true;
       } catch (KeeperException e) {
@@ -588,7 +590,7 @@ public class OverseerTaskProcessor implements Runnable, Closeable {
    * messages only) , or a different handler could be selected based on the
    * contents of the message.
    */
-  public interface OverseerMessageHandlerSelector {
+  public interface OverseerMessageHandlerSelector extends Closeable {
     OverseerMessageHandler selectOverseerMessageHandler(ZkNodeProps message);
   }
 
