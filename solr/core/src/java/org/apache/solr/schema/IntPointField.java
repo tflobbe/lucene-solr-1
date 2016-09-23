@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.Map;
 
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DocValues;
@@ -29,6 +28,8 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.legacy.LegacyNumericType;
+import org.apache.lucene.legacy.LegacyNumericUtils;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.docvalues.IntDocValues;
@@ -114,41 +115,55 @@ public class IntPointField extends PointField implements IntValueFieldType {
         SortedDocValues view = SortedSetSelector.wrap(sortedSet, selector);
 
         return new IntDocValues(thisAsSortedSetFieldSource) {
+          private int lastDocID;
+
+          private boolean setDoc(int docID) throws IOException {
+            if (docID < lastDocID) {
+              throw new IllegalArgumentException("docs out of order: lastDocID=" + lastDocID + " docID=" + docID);
+            }
+            if (docID > view.docID()) {
+              return docID == view.advance(docID);
+            } else {
+              return docID == view.docID();
+            }
+          }
+          
           @Override
-          public int intVal(int doc) {
-            BytesRef bytes = view.get(doc);
-            if (0 == bytes.length) {
-              // the only way this should be possible is for non existent value
-              assert !exists(doc) : "zero bytes for doc, but exists is true";
+          public int intVal(int doc) throws IOException {
+            if (setDoc(doc)) {
+              BytesRef bytes = view.binaryValue();
+              assert bytes.length > 0;
+              return IntPoint.decodeDimension(bytes.bytes, bytes.offset);
+            } else {
               return 0;
             }
-            return IntPoint.decodeDimension(bytes.bytes, bytes.offset);
           }
 
           @Override
-          public boolean exists(int doc) {
-            return -1 != view.getOrd(doc);
+          public boolean exists(int doc) throws IOException {
+            return setDoc(doc);
           }
 
           @Override
           public ValueFiller getValueFiller() {
             return new ValueFiller() {
               private final MutableValueInt mval = new MutableValueInt();
-
+              
               @Override
               public MutableValue getValue() {
                 return mval;
               }
-
+              
               @Override
-              public void fillValue(int doc) {
-                // micro optimized (eliminate at least one redudnent ord check)
-                // mval.exists = exists(doc);
-                // mval.value = mval.exists ? intVal(doc) : 0;
-                //
-                BytesRef bytes = view.get(doc);
-                mval.exists = (0 == bytes.length);
-                mval.value = mval.exists ? IntPoint.decodeDimension(bytes.bytes, bytes.offset) : 0;
+              public void fillValue(int doc) throws IOException {
+                if (setDoc(doc)) {
+                  BytesRef bytes = view.binaryValue();
+                  mval.exists = true;
+                  mval.value = IntPoint.decodeDimension(bytes.bytes, bytes.offset);
+                } else {
+                  mval.exists = false;
+                  mval.value = 0;
+                }
               }
             };
           }
@@ -222,8 +237,8 @@ public class IntPointField extends PointField implements IntValueFieldType {
   }
 
   @Override
-  public FieldType.LegacyNumericType getNumericType() {
-    return FieldType.LegacyNumericType.INT;
+  public LegacyNumericType getNumericType() {
+    return LegacyNumericType.INT;
   }
 
   @Override

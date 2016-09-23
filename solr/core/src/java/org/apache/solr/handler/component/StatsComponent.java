@@ -29,7 +29,6 @@ import org.apache.solr.common.params.SolrParams;
 import org.apache.solr.common.params.StatsParams;
 import org.apache.solr.common.util.NamedList;
 import org.apache.solr.common.util.SimpleOrderedMap;
-import org.apache.solr.schema.PointField;
 import org.apache.solr.search.DocSet;
 
 /**

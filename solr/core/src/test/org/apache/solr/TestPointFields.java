@@ -16,16 +16,10 @@
  */
 package org.apache.solr;
 
-import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.RandomAccessOrds;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.schema.IntPointField;
-import org.apache.solr.search.SolrIndexSearcher;
-import org.apache.solr.util.RefCounted;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -539,16 +533,16 @@ public class TestPointFields extends SolrTestCaseJ4 {
         "//lst[@name='facet_counts']/lst[@name='facet_ranges']/lst[@name='" + nonDocValuesField + "']/lst[@name='counts']/int[@name='-10'][.='0']");
   }
   
-  private boolean dvIsRandomAccessOrds(String field) throws IOException {
-    RefCounted<SolrIndexSearcher> ref = null;
-    try {
-      ref = h.getCore().getSearcher(); 
-      SortedSetDocValues values = DocValues.getSortedSet(ref.get().getIndexReader().leaves().get(0).reader(), field);
-      return values instanceof RandomAccessOrds;
-    } finally {
-      if (ref != null) ref.decref();
-    }
-  }
+//  private boolean dvIsRandomAccessOrds(String field) throws IOException {
+//    RefCounted<SolrIndexSearcher> ref = null;
+//    try {
+//      ref = h.getCore().getSearcher(); 
+//      SortedSetDocValues values = DocValues.getSortedSet(ref.get().getIndexReader().leaves().get(0).reader(), field);
+//      return values instanceof RandomAccessOrds;
+//    } finally {
+//      if (ref != null) ref.decref();
+//    }
+//  }
   
   @Test
   public void testIntPointMultiValuedFunctionQuery() throws Exception {
@@ -572,15 +566,15 @@ public class TestPointFields extends SolrTestCaseJ4 {
         "//result/doc[3]/int[@name='" + function + "'][.='2']",
         "//result/doc[10]/int[@name='" + function + "'][.='9']");
     
-    if (dvIsRandomAccessOrds(docValuesField)) {
-      function = "field(" + docValuesField + ", max)";
-      assertQ(req("q", "*:*", "fl", "id, " + function), 
-          "//*[@numFound='10']",
-          "//result/doc[1]/int[@name='" + function + "'][.='10']",
-          "//result/doc[2]/int[@name='" + function + "'][.='11']",
-          "//result/doc[3]/int[@name='" + function + "'][.='12']",
-          "//result/doc[10]/int[@name='" + function + "'][.='19']");
-    }
+//    if (dvIsRandomAccessOrds(docValuesField)) {
+//      function = "field(" + docValuesField + ", max)";
+//      assertQ(req("q", "*:*", "fl", "id, " + function), 
+//          "//*[@numFound='10']",
+//          "//result/doc[1]/int[@name='" + function + "'][.='10']",
+//          "//result/doc[2]/int[@name='" + function + "'][.='11']",
+//          "//result/doc[3]/int[@name='" + function + "'][.='12']",
+//          "//result/doc[10]/int[@name='" + function + "'][.='19']");
+//    }
     
     assertFalse(h.getCore().getLatestSchema().getField(nonDocValuesField).hasDocValues());
     assertTrue(h.getCore().getLatestSchema().getField(nonDocValuesField).multiValued());
