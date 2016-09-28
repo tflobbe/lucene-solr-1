@@ -25,6 +25,7 @@ import java.util.Iterator;
 
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.solr.SolrTestCaseJ4;
+import org.apache.solr.SolrTestCaseJ4.SuppressPointFields;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.params.SolrParams;
@@ -36,12 +37,8 @@ import org.junit.Test;
 
 //We want codecs that support DocValues, and ones supporting blank/empty values.
 @SuppressCodecs({"Appending","Lucene3x","Lucene40","Lucene41","Lucene42"})
+@SuppressPointFields
 public class TestCollapseQParserPlugin extends SolrTestCaseJ4 {
-
-  static {
-    // nocommit: skip point fields in this test until grouping
-    supressPointFields = true;
-  }
   
   @BeforeClass
   public static void beforeClass() throws Exception {

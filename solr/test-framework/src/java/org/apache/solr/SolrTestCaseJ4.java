@@ -162,8 +162,6 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
 
   public static int DEFAULT_CONNECTION_TIMEOUT = 60000;  // default socket connection timeout in ms
   
-  protected static boolean supressPointFields = false;
-
   protected void writeCoreProperties(Path coreDirectory, String corename) throws IOException {
     Properties props = new Properties();
     props.setProperty("name", corename);
@@ -205,6 +203,19 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
   public @interface SuppressObjectReleaseTracker {
     /** Point to JIRA entry. */
     public String bugUrl();
+  }
+  
+  /**
+   * Annotation for test classes that want to disable PointFields.
+   * PointFields will otherwise randomly used by some schemas.
+   */
+  @Documented
+  @Inherited
+  @Retention(RetentionPolicy.RUNTIME)
+  @Target(ElementType.TYPE)
+  public @interface SuppressPointFields {
+    /** Point to JIRA entry. */
+    public String bugUrl() default "None";
   }
   
   // these are meant to be accessed sequentially, but are volatile just to ensure any test
@@ -396,9 +407,10 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
       mergeSchedulerClass = "org.apache.lucene.index.ConcurrentMergeScheduler";
     }
     System.setProperty("solr.tests.mergeScheduler", mergeSchedulerClass);
-    if (supressPointFields || random().nextBoolean()) {
+    if (RandomizedContext.current().getTargetClass().isAnnotationPresent(SuppressPointFields.class) || random().nextBoolean()) {
       System.setProperty("solr.tests.intClass", "int");
     } else {
+      log.info("Using PointFields"); //nocommit remove log
       System.setProperty("solr.tests.intClass", "pint");
     }
   }
