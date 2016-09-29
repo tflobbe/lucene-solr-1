@@ -409,9 +409,11 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
     System.setProperty("solr.tests.mergeScheduler", mergeSchedulerClass);
     if (RandomizedContext.current().getTargetClass().isAnnotationPresent(SuppressPointFields.class) || random().nextBoolean()) {
       System.setProperty("solr.tests.intClass", "int");
+      System.setProperty("solr.tests.doubleClass", "double");
     } else {
       log.info("Using PointFields"); //nocommit remove log
       System.setProperty("solr.tests.intClass", "pint");
+      System.setProperty("solr.tests.doubleClass", "pdouble");
     }
   }
 
@@ -945,7 +947,7 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
    */
   public static void assertQEx(String failMessage, String exceptionMessage, SolrQueryRequest req, SolrException.ErrorCode code ) {
     try {
-//      ignoreException(".");
+      ignoreException(".");
       h.query(req);
       fail( failMessage );
     } catch (SolrException e) {

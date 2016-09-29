@@ -143,9 +143,9 @@ class FacetRangeProcessor extends FacetProcessor<FacetRange> {
                   "Expected numeric field type :" + sf);
       }
     } else if (ft instanceof PointField) {
-      final PointField trie = (PointField)ft;
+      final PointField pfield = (PointField)ft;
 
-      switch (trie.getType()) {
+      switch (pfield.getType()) {
         case FLOAT:
           calc = new FloatCalc(sf);
           break;

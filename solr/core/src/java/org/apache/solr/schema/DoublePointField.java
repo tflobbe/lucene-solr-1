@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.Map;
 
-import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexableField;
@@ -31,8 +31,8 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.legacy.LegacyNumericType;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
-import org.apache.lucene.queries.function.docvalues.IntDocValues;
-import org.apache.lucene.queries.function.valuesource.IntFieldSource;
+import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
+import org.apache.lucene.queries.function.valuesource.DoubleFieldSource;
 import org.apache.lucene.queries.function.valuesource.SortedSetFieldSource;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
@@ -40,67 +40,52 @@ import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.mutable.MutableValue;
-import org.apache.lucene.util.mutable.MutableValueInt;
+import org.apache.lucene.util.mutable.MutableValueDouble;
 import org.apache.solr.search.QParser;
 import org.apache.solr.uninverting.UninvertingReader.Type;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * A numeric field that can contain 32-bit signed two's complement integer values.
- *
- * <ul>
- * <li>Min Value Allowed: -2147483648</li>
- * <li>Max Value Allowed: 2147483647</li>
- * </ul>
- * 
- * @see Integer
- */
-public class IntPointField extends PointField implements IntValueFieldType {
+public class DoublePointField extends PointField implements DoubleValueFieldType {
 
   private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
-  public IntPointField() {
-    super(Integer.BYTES);
+  public DoublePointField() {
+    super(Double.BYTES);
   }
 
   {
-    type = PointTypes.INTEGER;
+    type = PointTypes.DOUBLE;
   }
 
   @Override
   public Object toNativeType(Object val) {
     if (val == null) return null;
-    if (val instanceof Number) return ((Number) val).intValue();
-    try {
-      if (val instanceof String) return Integer.parseInt((String) val);
-    } catch (NumberFormatException e) {
-      Float v = Float.parseFloat((String) val);
-      return v.intValue();
-    }
+    if (val instanceof Number) return ((Number) val).doubleValue();
+    if (val instanceof String) return Double.parseDouble((String) val);
     return super.toNativeType(val);
   }
 
   public Query getRangeQuery(QParser parser, SchemaField field, String min, String max, boolean minInclusive,
       boolean maxInclusive) {
-    int actualMin, actualMax;
+    double actualMin, actualMax;
     if (min == null) {
-      actualMin = Integer.MIN_VALUE;
+      actualMin = Double.NEGATIVE_INFINITY;
     } else {
-      actualMin = Integer.parseInt(min);
+      actualMin = Double.parseDouble(min);
       if (!minInclusive) {
-        actualMin++;
+        actualMin = Math.nextUp(actualMin);
       }
     }
     if (max == null) {
-      actualMax = Integer.MAX_VALUE;
+      actualMax = Double.POSITIVE_INFINITY;
     } else {
-      actualMax = Integer.parseInt(max);
+      actualMax = Double.parseDouble(max);
       if (!maxInclusive) {
-        actualMax--;
+        actualMax = Math.nextDown(actualMax);
       }
     }
-    return IntPoint.newRangeQuery(field.getName(), actualMin, actualMax);
+    return DoublePoint.newRangeQuery(field.getName(), actualMin, actualMax);
   }
 
   @Override
@@ -113,7 +98,7 @@ public class IntPointField extends PointField implements IntValueFieldType {
         SortedSetDocValues sortedSet = DocValues.getSortedSet(readerContext.reader(), field);
         SortedDocValues view = SortedSetSelector.wrap(sortedSet, selector);
 
-        return new IntDocValues(thisAsSortedSetFieldSource) {
+        return new DoubleDocValues(thisAsSortedSetFieldSource) {
           private int lastDocID;
 
           private boolean setDoc(int docID) throws IOException {
@@ -128,13 +113,13 @@ public class IntPointField extends PointField implements IntValueFieldType {
           }
           
           @Override
-          public int intVal(int doc) throws IOException {
+          public double doubleVal(int doc) throws IOException {
             if (setDoc(doc)) {
               BytesRef bytes = view.binaryValue();
               assert bytes.length > 0;
-              return IntPoint.decodeDimension(bytes.bytes, bytes.offset);
+              return DoublePoint.decodeDimension(bytes.bytes, bytes.offset);
             } else {
-              return 0;
+              return 0D;
             }
           }
 
@@ -146,7 +131,7 @@ public class IntPointField extends PointField implements IntValueFieldType {
           @Override
           public ValueFiller getValueFiller() {
             return new ValueFiller() {
-              private final MutableValueInt mval = new MutableValueInt();
+              private final MutableValueDouble mval = new MutableValueDouble();
               
               @Override
               public MutableValue getValue() {
@@ -158,7 +143,7 @@ public class IntPointField extends PointField implements IntValueFieldType {
                 if (setDoc(doc)) {
                   BytesRef bytes = view.binaryValue();
                   mval.exists = true;
-                  mval.value = IntPoint.decodeDimension(bytes.bytes, bytes.offset);
+                  mval.value = DoublePoint.decodeDimension(bytes.bytes, bytes.offset);
                 } else {
                   mval.exists = false;
                   mval.value = 0;
@@ -173,31 +158,31 @@ public class IntPointField extends PointField implements IntValueFieldType {
 
   @Override
   public Object toObject(SchemaField sf, BytesRef term) {
-    return IntPoint.decodeDimension(term.bytes, term.offset);
+    return DoublePoint.decodeDimension(term.bytes, term.offset);
   }
 
   @Override
   protected Query getExactQuery(QParser parser, SchemaField field, String externalVal) {
     // TODO: better handling of string->int conversion
-    return IntPoint.newExactQuery(field.getName(), Integer.parseInt(externalVal));
+    return DoublePoint.newExactQuery(field.getName(), Double.parseDouble(externalVal));
   }
 
   @Override
   protected String indexedToReadable(BytesRef indexedForm) {
-    return Integer.toString(IntPoint.decodeDimension(indexedForm.bytes, indexedForm.offset));
+    return Double.toString(DoublePoint.decodeDimension(indexedForm.bytes, indexedForm.offset));
   }
 
   @Override
   public void readableToIndexed(CharSequence val, BytesRefBuilder result) {
-    result.grow(Integer.BYTES);
-    result.setLength(Integer.BYTES);
-    IntPoint.encodeDimension(Integer.parseInt(val.toString()), result.bytes(), 0);
+    result.grow(Double.BYTES);
+    result.setLength(Double.BYTES);
+    DoublePoint.encodeDimension(Double.parseDouble(val.toString()), result.bytes(), 0);
   }
   
   @Override
   protected BytesRef storedToIndexedByteRef(IndexableField f) {
-    BytesRef bytes = new BytesRef(new byte[Integer.BYTES], 0, Integer.BYTES);
-    IntPoint.encodeDimension(f.numericValue().intValue(), bytes.bytes, 0);
+    BytesRef bytes = new BytesRef(new byte[Double.BYTES], 0, Double.BYTES);
+    DoublePoint.encodeDimension(f.numericValue().doubleValue(), bytes.bytes, 0);
     return bytes;
   }
   
@@ -211,11 +196,11 @@ public class IntPointField extends PointField implements IntValueFieldType {
     boolean sortMissingFirst = field.sortMissingFirst();
 
     if (sortMissingLast) {
-      missingValue = top ? Integer.MIN_VALUE : Integer.MAX_VALUE;
+      missingValue = top ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
     } else if (sortMissingFirst) {
-      missingValue = top ? Integer.MAX_VALUE : Integer.MIN_VALUE;
+      missingValue = top ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY;
     }
-    SortField sf = new SortField(field.getName(), SortField.Type.INT, top);
+    SortField sf = new SortField(field.getName(), SortField.Type.DOUBLE, top);
     sf.setMissingValue(missingValue);
     return sf;
   }
@@ -223,21 +208,21 @@ public class IntPointField extends PointField implements IntValueFieldType {
   @Override
   public Type getUninversionType(SchemaField sf) {
     if (sf.multiValued()) {
-      return Type.SORTED_SET_INTEGER;
+      return Type.SORTED_SET_DOUBLE;
     } else {
-      return Type.INTEGER_POINT;
+      return Type.DOUBLE_POINT;
     }
   }
 
   @Override
   public ValueSource getValueSource(SchemaField field, QParser qparser) {
     field.checkFieldCacheSource();
-    return new IntFieldSource(field.getName());
+    return new DoubleFieldSource(field.getName());
   }
 
   @Override
   public LegacyNumericType getNumericType() {
-    return LegacyNumericType.INT;
+    return LegacyNumericType.DOUBLE;
   }
 
   @Override
@@ -247,12 +232,12 @@ public class IntPointField extends PointField implements IntValueFieldType {
     if (boost != 1.0 && log.isTraceEnabled()) {
       log.trace("Can't use document/field boost for PointField. Field: " + field.getName() + ", boost: " + boost);
     }
-    int intValue = (value instanceof Number) ? ((Number) value).intValue() : Integer.parseInt(value.toString());
-    return new IntPoint(field.getName(), intValue);
+    double doubleValue = (value instanceof Number) ? ((Number) value).doubleValue() : Double.parseDouble(value.toString());
+    return new DoublePoint(field.getName(), doubleValue);
   }
 
   @Override
   protected StoredField getStoredField(SchemaField sf, Object value) {
-    return new StoredField(sf.getName(), (Integer) this.toNativeType(value));
+    return new StoredField(sf.getName(), (Double) this.toNativeType(value));
   }
 }

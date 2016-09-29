@@ -16,6 +16,7 @@
  */
 package org.apache.solr;
 
+import org.apache.solr.SolrTestCaseJ4.SuppressPointFields;
 import org.apache.solr.common.params.ModifiableSolrParams;
 import org.noggit.JSONUtil;
 import org.noggit.ObjectBuilder;
@@ -36,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+@SuppressPointFields
 public class TestJoin extends SolrTestCaseJ4 {
 
   private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
