@@ -43,7 +43,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRefHash;
+import org.apache.solr.cloud.ZkController;
 import org.apache.solr.common.SolrException;
+import org.apache.solr.common.cloud.DocCollection;
 import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.util.NamedList;
 import org.apache.solr.common.util.SimpleOrderedMap;
@@ -118,6 +120,14 @@ public class DirectUpdateHandler2 extends UpdateHandler implements SolrCoreState
     commitWithinSoftCommit = updateHandlerInfo.commitWithinSoftCommit;
     indexWriterCloseWaitsForMerges = updateHandlerInfo.indexWriterCloseWaitsForMerges;
 
+    ZkController zkController = core.getCoreDescriptor().getCoreContainer().getZkController();
+    if (zkController != null) {
+      DocCollection dc = zkController.getClusterState().getCollection(core.getCoreDescriptor().getCollectionName());
+      if (dc.getRealtimeReplicas() == 1) {
+        commitWithinSoftCommit = false;
+        commitTracker.setOpenSearcher(true);
+      }
+    }
 
   }
   
@@ -199,6 +209,11 @@ public class DirectUpdateHandler2 extends UpdateHandler implements SolrCoreState
       cmd.overwrite = false;
     }
     try {
+      if ( (cmd.getFlags() & UpdateCommand.IGNORE_INDEXWRITER) != 0) {
+        if (ulog != null) ulog.add(cmd);
+        return 1;
+      }
+
       if (cmd.overwrite) {
         // Check for delete by query commands newer (i.e. reordered). This
         // should always be null on a leader
@@ -370,6 +385,11 @@ public class DirectUpdateHandler2 extends UpdateHandler implements SolrCoreState
     deleteByIdCommands.increment();
     deleteByIdCommandsCumulative.increment();
 
+    if ( (cmd.getFlags() & UpdateCommand.IGNORE_INDEXWRITER) != 0 ) {
+      if (ulog != null) ulog.delete(cmd);
+      return;
+    }
+
     Term deleteTerm = new Term(idField.getName(), cmd.getIndexedId());
     // SolrCore.verbose("deleteDocuments",deleteTerm,writer);
     RefCounted<IndexWriter> iw = solrCoreState.getIndexWriter(core);
@@ -429,6 +449,11 @@ public class DirectUpdateHandler2 extends UpdateHandler implements SolrCoreState
     deleteByQueryCommandsCumulative.increment();
     boolean madeIt=false;
     try {
+      if ( (cmd.getFlags() & UpdateCommand.IGNORE_INDEXWRITER) != 0) {
+        if (ulog != null) ulog.deleteByQuery(cmd);
+        madeIt = true;
+        return;
+      }
       Query q = getQuery(cmd);
       
       boolean delAll = MatchAllDocsQuery.class == q.getClass();
@@ -529,7 +554,7 @@ public class DirectUpdateHandler2 extends UpdateHandler implements SolrCoreState
       log.info("start "+cmd);
       RefCounted<IndexWriter> iw = solrCoreState.getIndexWriter(core);
       try {
-        SolrIndexWriter.setCommitData(iw.get());
+        SolrIndexWriter.setCommitData(iw.get(), cmd.getVersion());
         iw.get().prepareCommit();
       } finally {
         iw.decref();
@@ -610,7 +635,7 @@ public class DirectUpdateHandler2 extends UpdateHandler implements SolrCoreState
           // SolrCore.verbose("writer.commit() start writer=",writer);
 
           if (writer.hasUncommittedChanges()) {
-            SolrIndexWriter.setCommitData(writer);
+            SolrIndexWriter.setCommitData(writer, cmd.getVersion());
             writer.commit();
           } else {
             log.info("No uncommitted changes. Skipping IW.commit.");
@@ -795,7 +820,7 @@ public class DirectUpdateHandler2 extends UpdateHandler implements SolrCoreState
           }
 
           // todo: refactor this shared code (or figure out why a real CommitUpdateCommand can't be used)
-          SolrIndexWriter.setCommitData(writer);
+          SolrIndexWriter.setCommitData(writer, cmd.getVersion());
           writer.commit();
 
           synchronized (solrCoreState.getUpdateLock()) {
