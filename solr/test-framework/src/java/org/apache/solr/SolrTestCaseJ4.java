@@ -515,12 +515,14 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
       System.setProperty("solr.tests.longClass", "long");
       System.setProperty("solr.tests.doubleClass", "double");
       System.setProperty("solr.tests.floatClass", "float");
+      System.setProperty("solr.tests.dateClass", "date");
     } else {
       log.info("Using PointFields");
       System.setProperty("solr.tests.intClass", "pint");
       System.setProperty("solr.tests.longClass", "plong");
       System.setProperty("solr.tests.doubleClass", "pdouble");
       System.setProperty("solr.tests.floatClass", "pfloat");
+      System.setProperty("solr.tests.dateClass", "pdate");
     }
   }
 
@@ -2019,6 +2021,10 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
   // the string to write to the core.properties file may be null in which case nothing is done with it.
   // propertiesContent may be an empty string, which will actually work.
   public static void copyMinConf(File dstRoot, String propertiesContent) throws IOException {
+    copyMinConf(dstRoot, propertiesContent, "solrconfig-minimal.xml");
+  }
+
+  public static void copyMinConf(File dstRoot, String propertiesContent, String solrconfigXmlName) throws IOException {
 
     File subHome = new File(dstRoot, "conf");
     if (! dstRoot.exists()) {
@@ -2030,7 +2036,7 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
     }
     String top = SolrTestCaseJ4.TEST_HOME() + "/collection1/conf";
     FileUtils.copyFile(new File(top, "schema-tiny.xml"), new File(subHome, "schema.xml"));
-    FileUtils.copyFile(new File(top, "solrconfig-minimal.xml"), new File(subHome, "solrconfig.xml"));
+    FileUtils.copyFile(new File(top, solrconfigXmlName), new File(subHome, "solrconfig.xml"));
     FileUtils.copyFile(new File(top, "solrconfig.snippet.randomindexconfig.xml"), new File(subHome, "solrconfig.snippet.randomindexconfig.xml"));
   }
 
@@ -2157,9 +2163,6 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
 
     SolrInputDocument sdoc1 = (SolrInputDocument) expected;
     SolrInputDocument sdoc2 = (SolrInputDocument) actual;
-    if (Float.compare(sdoc1.getDocumentBoost(), sdoc2.getDocumentBoost()) != 0) {
-      return false;
-    }
 
     if(sdoc1.getFieldNames().size() != sdoc2.getFieldNames().size()) {
       return false;
@@ -2215,10 +2218,6 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
     }
 
     if (!sif1.getValue().equals(sif2.getValue())) {
-      return false;
-    }
-
-    if (Float.compare(sif1.getBoost(), sif2.getBoost()) != 0) {
       return false;
     }
 
