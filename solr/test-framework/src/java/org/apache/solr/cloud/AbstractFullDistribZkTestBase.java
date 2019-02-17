@@ -2272,6 +2272,10 @@ public abstract class AbstractFullDistribZkTestBase extends AbstractDistribZkTes
                   , leader.getName(), pullReplica.getName(), leaderIndexVersion, replicaIndexVersion);
             }
             
+            if (replicaIndexVersion == 0L) {
+              break;
+            }
+            
             // Make sure the host is serving the correct version
             try (SolrCore core = containers.get(pullReplica.getNodeName()).getCore(pullReplica.getCoreName())) {
               RefCounted<SolrIndexSearcher> ref = core.getRegisteredSearcher();
