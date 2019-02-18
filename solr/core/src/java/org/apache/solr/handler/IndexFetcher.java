@@ -441,7 +441,7 @@ public class IndexFetcher {
       }
 
       if (latestVersion == 0L) {
-        if (commit.getGeneration() != 0) {
+        if (commit.getGeneration() != 0 && (forceReplication || skipCommitOnMasterVersionZero)) {
           // since we won't get the files for an empty index,
           // we just clear ours and commit
           log.info("New index in Leader. Deleting mine...");
