@@ -390,7 +390,6 @@ public class IndexFetcher {
         if (!replica.getCoreUrl().equals(leaderUrl)) {
           leaderUrl = replica.getCoreUrl();
           log.info("Updated leaderUrl to {}", leaderUrl);
-          // TODO: Do we need to set forceReplication = true?
         } else {
           log.debug("leaderUrl didn't change");
         }
@@ -441,7 +440,7 @@ public class IndexFetcher {
       }
 
       if (latestVersion == 0L) {
-        if (commit.getGeneration() != 0 && (forceReplication || skipCommitOnMasterVersionZero)) {
+        if (commit.getGeneration() != 0 && !shouldSkipFetchWithVersionZero()) {
           // since we won't get the files for an empty index,
           // we just clear ours and commit
           log.info("New index in Leader. Deleting mine...");
@@ -667,6 +666,14 @@ public class IndexFetcher {
         cleanup(solrCore, tmpIndexDir, indexDir, deleteTmpIdxDir, tmpTlogDir, successfulInstall);
       }
     }
+  }
+
+  private boolean shouldSkipFetchWithVersionZero() {
+    CloudDescriptor cd = solrCore.getCoreDescriptor().getCloudDescriptor();
+    if (cd == null) {
+      return false;
+    }
+    return cd.getReplicaType() == Replica.Type.PULL;
   }
 
   private Replica getLeaderReplica() throws InterruptedException {
