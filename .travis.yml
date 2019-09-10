@@ -1,0 +1,5 @@
+language: java
+install: ant ivy-bootstrap
+script: ant precommit
+jdk:
+  - openjdk11
