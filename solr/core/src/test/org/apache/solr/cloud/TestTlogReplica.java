@@ -421,6 +421,7 @@ public class TestTlogReplica extends SolrCloudTestCase {
     waitForState("Expected collection to be 1x2", collectionName, clusterShape(1, 2));
     // added replica should replicate from the leader
     waitForNumDocsInAllReplicas(2, docCollection.getReplicas(EnumSet.of(Replica.Type.TLOG)), REPLICATION_TIMEOUT_SECS);
+    waitUntilInternalCommunicationIsRestored();
   }
 
   private void addReplicaWithRetries() throws SolrServerException, IOException {
@@ -461,6 +462,7 @@ public class TestTlogReplica extends SolrCloudTestCase {
     pullReplicaJetty.start();
     waitForState("Replica not added", collectionName, activeReplicaCount(0, 2, 0));
     waitForNumDocsInAllActiveReplicas(2);
+    waitUntilInternalCommunicationIsRestored();
   }
 
   @Test
@@ -755,6 +757,45 @@ public class TestTlogReplica extends SolrCloudTestCase {
     waitForState("Expected collection to be created with " + numShards + " shards and  " + numReplicasPerShard + " replicas",
         collectionName, clusterShape(numShards, numShards * numReplicasPerShard));
     return assertNumberOfReplicas(numNrtReplicas*numShards, numTlogReplicas*numShards, numPullReplicas*numShards, false, true);
+  }
+  
+
+  private void waitUntilInternalCommunicationIsRestored() throws InterruptedException, IOException {
+    DocCollection docCollection = getCollectionState(collectionName);
+    Collection<Replica> replicas = docCollection.getReplicas();
+    String shardsParameter = assembleShardsParameter(replicas);
+    TimeOut t = new TimeOut(30, TimeUnit.SECONDS, TimeSource.NANO_TIME);
+    for (Replica r:replicas) {
+      if (!r.isActive(cluster.getSolrClient().getZkStateReader().getClusterState().getLiveNodes())) {
+        continue;
+      }
+      try (HttpSolrClient replicaClient = getHttpSolrClient(r.getCoreUrl())) {
+        while (true) {
+          try {
+            SolrQuery q = new SolrQuery("*:*");
+            q.add("shards", shardsParameter);
+            replicaClient.query(q);
+            break;
+          } catch (SolrServerException | IOException e) {
+            if (t.hasTimedOut()) {
+              log.error("Time out waiting for communication between replicas to be restored: ", e);
+              fail("Time out waiting for communication between replicas to be restored: " + e.getMessage());
+            }
+            Thread.sleep(100);
+          }
+        }
+      }
+    }
+  }
+
+  private String assembleShardsParameter(Collection<Replica> replicas) {
+    StringBuilder builder = new StringBuilder();
+    for (Replica r:replicas) {
+      builder.append(r.getCoreUrl());
+      builder.append(',');
+    }
+    builder.setLength(builder.length() - 1);
+    return builder.toString();
   }
 
   private void waitForNumDocsInAllActiveReplicas(int numDocs) throws IOException, SolrServerException, InterruptedException {
