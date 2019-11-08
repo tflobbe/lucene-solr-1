@@ -16,21 +16,7 @@
  */
 package org.apache.solr.cloud;
 
-import static org.apache.solr.common.params.CommonParams.ID;
-
-import java.io.Closeable;
-import java.io.IOException;
-import java.lang.invoke.MethodHandles;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.function.BiConsumer;
-
+import com.codahale.metrics.Timer;
 import org.apache.lucene.util.Version;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.cloud.SolrCloudManager;
@@ -65,6 +51,7 @@ import org.apache.solr.common.util.NamedList;
 import org.apache.solr.common.util.ObjectReleaseTracker;
 import org.apache.solr.common.util.Pair;
 import org.apache.solr.common.util.Utils;
+import org.apache.solr.coordination.ElectionGroup;
 import org.apache.solr.core.CloudConfig;
 import org.apache.solr.core.CoreContainer;
 import org.apache.solr.handler.admin.CollectionsHandler;
@@ -76,7 +63,20 @@ import org.apache.zookeeper.KeeperException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Timer;
+import java.io.Closeable;
+import java.io.IOException;
+import java.lang.invoke.MethodHandles;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.BiConsumer;
+
+import static org.apache.solr.common.params.CommonParams.ID;
 
 /**
  * Cluster leader. Responsible for processing state updates, node assignments, creating/deleting
@@ -118,6 +118,8 @@ public class Overseer implements SolrCloseable {
     private final Stats zkStats;
 
     private boolean isClosed = false;
+    
+    private final ElectionGroup overseerElectionGroup;
 
     public ClusterStateUpdater(final ZkStateReader reader, final String myId, Stats zkStats) {
       this.zkClient = reader.getZkClient();
@@ -129,6 +131,7 @@ public class Overseer implements SolrCloseable {
       this.completedMap = getCompletedMap(zkClient);
       this.myId = myId;
       this.reader = reader;
+      this.overseerElectionGroup = CoordinationRegistry.getManagerInstance().getElectionGroup(OVERSEER_ELECT);
     }
 
     public Stats getStateUpdateQueueStats() {
@@ -142,6 +145,7 @@ public class Overseer implements SolrCloseable {
     @Override
     public void run() {
       MDCLoggingContext.setNode(zkController.getNodeName() );
+      overseerElectionGroup.addParticipant(myId);
 
       LeaderStatus isLeader = amILeader();
       while (isLeader == LeaderStatus.DONT_KNOW) {
@@ -436,49 +440,67 @@ public class Overseer implements SolrCloseable {
       return Collections.singletonList(ZkStateWriter.NO_OP);
     }
 
+//    private LeaderStatus amILeader() {
+//      Timer.Context timerContext = stats.time("am_i_leader");
+//      boolean success = true;
+//      String propsId = null;
+//      try {
+//        ZkNodeProps props = ZkNodeProps.load(zkClient.getData(
+//            OVERSEER_ELECT + "/leader", null, null, true));
+//        propsId = props.getStr(ID);
+//        if (myId.equals(propsId)) {
+//          return LeaderStatus.YES;
+//        }
+//      } catch (KeeperException e) {
+//        success = false;
+//        if (e.code() == KeeperException.Code.CONNECTIONLOSS) {
+//          log.error("", e);
+//          return LeaderStatus.DONT_KNOW;
+//        } else if (e.code() != KeeperException.Code.SESSIONEXPIRED) {
+//          log.warn("", e);
+//        } else {
+//          log.debug("", e);
+//        }
+//      } catch (InterruptedException e) {
+//        success = false;
+//        Thread.currentThread().interrupt();
+//      } catch (AlreadyClosedException e) {
+//        success = false;
+//      } catch (Exception e) {
+//        success = false;
+//        log.warn("Unexpected exception", e);
+//      } finally {
+//        timerContext.stop();
+//        if (success)  {
+//          stats.success("am_i_leader");
+//        } else  {
+//          stats.error("am_i_leader");
+//        }
+//      }
+//      log.info("According to ZK I (id={}) am no longer a leader. propsId={}", myId, propsId);
+//      return LeaderStatus.NO;
+//    }
+    
     private LeaderStatus amILeader() {
       Timer.Context timerContext = stats.time("am_i_leader");
-      boolean success = true;
       String propsId = null;
       try {
-        ZkNodeProps props = ZkNodeProps.load(zkClient.getData(
-            OVERSEER_ELECT + "/leader", null, null, true));
-        propsId = props.getStr(ID);
-        if (myId.equals(propsId)) {
+        String leaderId = overseerElectionGroup.getLeader();
+        if (myId.equals(leaderId)) {
           return LeaderStatus.YES;
-        }
-      } catch (KeeperException e) {
-        success = false;
-        if (e.code() == KeeperException.Code.CONNECTIONLOSS) {
-          log.error("", e);
+        } else if (leaderId == null) {
           return LeaderStatus.DONT_KNOW;
-        } else if (e.code() != KeeperException.Code.SESSIONEXPIRED) {
-          log.warn("", e);
         } else {
-          log.debug("", e);
+          return LeaderStatus.NO;
         }
-      } catch (InterruptedException e) {
-        success = false;
-        Thread.currentThread().interrupt();
-      } catch (AlreadyClosedException e) {
-        success = false;
-      } catch (Exception e) {
-        success = false;
-        log.warn("Unexpected exception", e);
       } finally {
         timerContext.stop();
-        if (success)  {
-          stats.success("am_i_leader");
-        } else  {
-          stats.error("am_i_leader");
-        }
       }
-      log.info("According to ZK I (id={}) am no longer a leader. propsId={}", myId, propsId);
-      return LeaderStatus.NO;
     }
 
     @Override
       public void close() {
+        this.overseerElectionGroup.removeParticipant(myId);
         this.isClosed = true;
       }
 
