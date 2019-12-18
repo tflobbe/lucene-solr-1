@@ -56,8 +56,8 @@ public abstract class SolrResponse implements Serializable, MapWriter {
     if (exp == null) {
       return null;
     }
-    Integer rspCode = (Integer) exp.get("rspCode");
-    ErrorCode errorCode = rspCode != null && rspCode != -1 ? ErrorCode.getErrorCode(rspCode) : ErrorCode.SERVER_ERROR;
+    Number rspCode = (Number) exp.get("rspCode");
+    ErrorCode errorCode = rspCode != null && rspCode.intValue() != -1 ? ErrorCode.getErrorCode(rspCode.intValue()) : ErrorCode.SERVER_ERROR;
     return new SolrException(errorCode, (String)exp.get("msg"));
   }
   

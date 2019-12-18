@@ -333,6 +333,26 @@ public class Utils {
       throw new RuntimeException(e);
     }
   };
+  
+
+  public static final Function<JSONParser, ObjectBuilder> NAMEDLISTOBJBUILDER = jsonParser -> {
+    try {
+      return new ObjectBuilder(jsonParser) {
+        @Override
+        public Object newObject() {
+          return new NamedList<Object>();
+        }
+        
+        @SuppressWarnings("unchecked")
+        @Override
+        public void addKeyVal(Object map, Object key, Object val) throws IOException {
+          ((NamedList<Object>) map).add((String)key, val);
+        }
+      };
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  };
 
   /**
    * Util function to convert {@link Object} to {@link String}

@@ -20,6 +20,10 @@ import org.apache.solr.SolrTestCaseJ4;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.common.util.NamedList;
 import org.apache.solr.common.util.SimpleOrderedMap;
+import org.junit.Ignore;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class OverseerSolrResponseTest extends SolrTestCaseJ4 {
   
@@ -40,19 +44,26 @@ public class OverseerSolrResponseTest extends SolrTestCaseJ4 {
     assertSerializeDeserialize(responseNl);
   }
   
-  public void testRepeatedKeys() {
-    NamedList<Object> responseNl = new NamedList<>();
-    responseNl.add("foo", "bar");
-    responseNl.add("foo", "zoo");
-    assertSerializeDeserialize(responseNl);
-  }
-  
   public void testNested() {
     NamedList<Object> responseNl = new NamedList<>();
     NamedList<Object> response2 = new NamedList<>();
     response2.add("foo", "bar");
     responseNl.add("foo", response2);
     assertSerializeDeserialize(responseNl);
+  }
+  
+  @SuppressWarnings("unchecked")
+  @Ignore
+  public void testMap() {
+    NamedList<Object> responseNl = new NamedList<>();
+    Map<String, Object> response2 = new HashMap<>();
+    response2.put("foo", "bar");
+    responseNl.add("foo", response2);
+    OverseerSolrResponse deserialized = OverseerSolrResponse.deserialize(OverseerSolrResponse.serialize(new OverseerSolrResponse(responseNl)));
+    assertNotNull("Map missing from the serialization", deserialized.getResponse().get("foo"));
+    assertEquals("Unexpected object type", NamedList.class, deserialized.getResponse().get("foo").getClass());
+    assertNotNull("Map missing data from the serialized map", ((NamedList<Object>)deserialized.getResponse().get("foo")).get("foo"));
+    assertEquals("bar", ((NamedList<Object>)deserialized.getResponse().get("foo")).get("foo"));
   }
   
   public void testException() {

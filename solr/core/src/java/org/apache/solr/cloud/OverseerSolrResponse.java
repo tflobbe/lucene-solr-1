@@ -19,16 +19,19 @@ package org.apache.solr.cloud;
 import org.apache.solr.client.solrj.SolrResponse;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.common.SolrException.ErrorCode;
+import org.apache.solr.common.annotation.JsonProperty;
 import org.apache.solr.common.util.NamedList;
 import org.apache.solr.common.util.Utils;
 
-import java.io.IOException;
+import java.io.ByteArrayInputStream;
 import java.util.Objects;
 
 public class OverseerSolrResponse extends SolrResponse {
   
+  @JsonProperty("response")
   NamedList<Object> responseList = null;
 
+  @JsonProperty("elapsedTime")
   private long elapsedTime;
   
   public OverseerSolrResponse(NamedList list) {
@@ -56,10 +59,11 @@ public class OverseerSolrResponse extends SolrResponse {
   }
 
   /**
-   * This method serializes the content of an {@code OverseerSolrResponse}. Note that:
+   * This method serializes the content of an {@code OverseerSolrResponse} into JSON. Note that:
    * <ul>
    * <li>The elapsed time is not serialized</li>
-   * <li>"Unknown" elements for the Javabin format will be serialized as Strings. See {@link org.apache.solr.common.util.JavaBinCodec#writeVal}</li>
+   * <li>Duplicated keys are not supported</li>
+   * <li>{@code #deserialize(byte[])} turns every JSON Object into a NamedList</li>
    * </ul>
    */
   @SuppressWarnings("deprecation")
@@ -68,11 +72,7 @@ public class OverseerSolrResponse extends SolrResponse {
     if (Boolean.getBoolean("solr.unsafeOverseerResponseSerialization")) {
       return SolrResponse.serializable(responseObject);
     }
-    try {
-      return Utils.toJavabin(responseObject.getResponse()).readAllBytes();
-    } catch (IOException|RuntimeException e) {
-      throw new SolrException(ErrorCode.SERVER_ERROR, "Exception serializing response to Javabin", e);
-    }
+    return Utils.toJSON(responseObject.getResponse());
   }
   
   @SuppressWarnings("deprecation")
@@ -80,9 +80,9 @@ public class OverseerSolrResponse extends SolrResponse {
     Objects.requireNonNull(responseBytes);
     try {
       @SuppressWarnings("unchecked")
-      NamedList<Object> response = (NamedList<Object>) Utils.fromJavabin(responseBytes);
+      NamedList<Object> response = (NamedList<Object>) Utils.fromJSON(new ByteArrayInputStream(responseBytes), Utils.NAMEDLISTOBJBUILDER);
       return new OverseerSolrResponse(response);
-    } catch (IOException|RuntimeException e) {
+    } catch (RuntimeException e) {
       if (Boolean.getBoolean("solr.unsafeOverseerResponseDeserialization")) {
         return (OverseerSolrResponse) SolrResponse.deserialize(responseBytes);
       }
