@@ -227,8 +227,8 @@ public class IndexFetcher {
     if (fetchFromLeader != null && fetchFromLeader instanceof Boolean) {
       this.fetchFromLeader = (boolean) fetchFromLeader;
     }
-    if (initArgs.get(SKIP_COMMIT_ON_MASTER_VERSION_ZERO) != null) {
-      log.info("{} property is no longer needed. In case of TLOG/PULL replicas, index is never replicated when the leader has version 0", SKIP_COMMIT_ON_MASTER_VERSION_ZERO);
+    if (initArgs.get(SKIP_COMMIT_ON_LEADER_VERSION_ZERO) != null) {
+      log.info("{} property is no longer needed. In case of TLOG/PULL replicas, index is never replicated when the leader has version 0", SKIP_COMMIT_ON_LEADER_VERSION_ZERO);
     }
     String leaderUrl = ReplicationHandler.getObjectWithBackwardCompatibility(initArgs, LEADER_URL, LEGACY_LEADER_URL);
     if (leaderUrl == null && !this.fetchFromLeader)
@@ -407,11 +407,11 @@ public class IndexFetcher {
         }
       }
 
-      long masterVersion = (Long) response.get(CMD_INDEX_VERSION);
-      long masterGeneration = (Long) response.get(GENERATION);
+      long leaderVersion = (Long) response.get(CMD_INDEX_VERSION);
+      long leaderGeneration = (Long) response.get(GENERATION);
 
-      log.info("Leader's generation: {}", masterGeneration);
-      log.info("Leader's version: {}", masterVersion);
+      log.info("Leader's generation: {}", leaderGeneration);
+      log.info("Leader's version: {}", leaderVersion);
 
       IndexCommit localCommit = solrCore.getDeletionPolicy().getLatestCommit();
       if (localCommit == null) {
@@ -435,7 +435,7 @@ public class IndexFetcher {
         log.info("Follower's version: {}", IndexDeletionPolicyWrapper.getCommitTimestamp(localCommit)); // logOK
       }
 
-      if (masterVersion == 0L) {
+      if (leaderVersion == 0L) {
         if (localCommit.getGeneration() != 0 && !fetchFromLeader) {
           // since we won't get the files for an empty index,
           // we just clear ours and commit
@@ -458,7 +458,7 @@ public class IndexFetcher {
       }
 
       // TODO: Should we be comparing timestamps (across machines) here?
-      if (!forceReplication && IndexDeletionPolicyWrapper.getCommitTimestamp(localCommit) == masterVersion) {
+      if (!forceReplication && IndexDeletionPolicyWrapper.getCommitTimestamp(localCommit) == leaderVersion) {
         //master and slave are already in sync just return
         log.info("Follower in sync with leader.");
         successfulInstall = true;
@@ -466,7 +466,7 @@ public class IndexFetcher {
       }
       log.info("Starting replication process");
       // get the list of files first
-      fetchFileList(masterGeneration);
+      fetchFileList(leaderGeneration);
       // this can happen if the commit point is deleted before we fetch the file list.
       if (filesToDownload.isEmpty()) {
         return IndexFetchResult.PEER_INDEX_COMMIT_DELETED;
@@ -483,8 +483,8 @@ public class IndexFetcher {
       // then a new index directory to be created and all the files need to be copied
       log.debug("Checking if isFullCopyNeeded");
       boolean isFullCopyNeeded = IndexDeletionPolicyWrapper
-          .getCommitTimestamp(localCommit) >= masterVersion
-          || localCommit.getGeneration() >= masterGeneration || forceReplication;
+          .getCommitTimestamp(localCommit) >= leaderVersion
+          || localCommit.getGeneration() >= leaderGeneration || forceReplication;
       log.debug("isFullCopyNeeded? {}", isFullCopyNeeded);
 
       String timestamp = new SimpleDateFormat(SnapShooter.DATE_FMT, Locale.ROOT).format(new Date());
@@ -561,7 +561,7 @@ public class IndexFetcher {
           successfulInstall = false;
 
           long bytesDownloaded = downloadIndexFiles(isFullCopyNeeded, indexDir,
-              tmpIndexDir, indexDirPath, tmpIndexDirPath, masterGeneration);
+              tmpIndexDir, indexDirPath, tmpIndexDirPath, leaderGeneration);
           final long timeTakenSeconds = getReplicationTimeElapsed();
           final Long bytesDownloadedPerSecond = (timeTakenSeconds != 0 ? Long.valueOf(bytesDownloaded / timeTakenSeconds) : null);
           log.info("Total time taken for download (fullCopy={},bytesDownloaded={}) : {} secs ({} bytes/sec) to {}",
@@ -570,7 +570,7 @@ public class IndexFetcher {
           Collection<Map<String,Object>> modifiedConfFiles = getModifiedConfFiles(confFilesToDownload);
           if (!modifiedConfFiles.isEmpty()) {
             reloadCore = true;
-            downloadConfFiles(confFilesToDownload, masterGeneration);
+            downloadConfFiles(confFilesToDownload, leaderGeneration);
             if (isFullCopyNeeded) {
               successfulInstall = solrCore.modifyIndexProps(tmpIdxDirName);
               if (successfulInstall) deleteTmpIdxDir = false;
