@@ -2267,7 +2267,7 @@ public abstract class AbstractFullDistribZkTestBase extends AbstractDistribZkTes
         while (true) {
           long replicaIndexVersion = getIndexVersion(pullReplica);
           if (replicaIndexVersion == 0L) {
-            log.info("Leader replica's index has version ({}) in sync with replica({}): {} == {}", leader.getName(), pullReplica.getName(), leaderIndexVersion, replicaIndexVersion);
+            log.info("Leader replica's index has version ({}) in sync with replica({}): {} == {}", leader.getName(), pullReplica.getName(), leaderIndexVersion, replicaIndexVersion); //logOK
             break;
           }
           if (leaderIndexVersion == replicaIndexVersion) {

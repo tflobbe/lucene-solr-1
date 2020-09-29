@@ -672,7 +672,7 @@ public class TestPullReplica extends SolrCloudTestCase {
         addReplicaToShard(shardName, type);
         break;
       } catch (IOException | SolrException e) {
-        log.error("Exception while adding replica. Attempt: " + i + "/" +  maxAttempts, e);
+        log.error("Exception while adding replica. Attempt: {} / {}", i, maxAttempts, e);
       }
     }
   }
