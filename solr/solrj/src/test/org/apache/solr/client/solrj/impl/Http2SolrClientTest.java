@@ -17,11 +17,26 @@
 
 package org.apache.solr.client.solrj.impl;
 
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import org.apache.solr.SolrJettyTestBase;
+import org.apache.solr.client.solrj.SolrQuery;
+import org.apache.solr.client.solrj.SolrRequest;
+import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.embedded.JettyConfig;
+import org.apache.solr.client.solrj.request.QueryRequest;
+import org.apache.solr.client.solrj.request.RequestWriter;
+import org.apache.solr.client.solrj.request.UpdateRequest;
+import org.apache.solr.common.SolrException;
+import org.apache.solr.common.SolrInputDocument;
+import org.apache.solr.common.params.CommonParams;
+import org.apache.solr.common.util.Base64;
+import org.apache.solr.common.util.SuppressForbidden;
+import org.eclipse.jetty.servlet.ServletHolder;
+import org.eclipse.jetty.util.ssl.SslContextFactory;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -31,27 +46,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-
-import org.apache.solr.SolrJettyTestBase;
-import org.apache.solr.client.solrj.SolrQuery;
-import org.apache.solr.client.solrj.SolrRequest;
-import org.apache.solr.client.solrj.SolrServerException;
-import org.apache.solr.client.solrj.embedded.JettyConfig;
-import org.apache.solr.client.solrj.request.RequestWriter;
-import org.apache.solr.client.solrj.request.UpdateRequest;
-import org.apache.solr.common.SolrException;
-import org.apache.solr.common.SolrInputDocument;
-import org.apache.solr.common.params.CommonParams;
-import org.apache.solr.common.util.SuppressForbidden;
-import org.eclipse.jetty.servlet.ServletHolder;
-import org.eclipse.jetty.util.ssl.SslContextFactory;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 public class Http2SolrClientTest extends SolrJettyTestBase {
 
   private static final String EXPECTED_USER_AGENT = "Solr[" + Http2SolrClient.class.getName() + "] 2.0";
-
 
   public static class DebugServlet extends HttpServlet {
     public static void clear() {
@@ -614,6 +616,131 @@ public class Http2SolrClientTest extends SolrJettyTestBase {
     System.clearProperty("solr.jetty.ssl.verifyClientHostName");
     System.clearProperty("javax.net.ssl.keyStoreType");
     System.clearProperty("javax.net.ssl.trustStoreType");
+  }
+
+  protected void expectThrowsAndMessage(Class<? extends Exception> expectedType, ThrowingRunnable executable, String expectedMessage) {
+    Exception e = expectThrows(expectedType, executable);
+    assertTrue("Expecting message to contain \"" + expectedMessage + "\" but was: " + e.getMessage(), e.getMessage().contains(expectedMessage));
+  }
+
+  @Test
+  public void testBadExplicitCredentials() {
+    expectThrowsAndMessage(IllegalStateException.class, () -> new Http2SolrClient.Builder()
+            .withBasicAuthCredentials("foo", null), "Invalid Authentication credentials");
+    expectThrowsAndMessage(IllegalStateException.class, () -> new Http2SolrClient.Builder()
+            .withBasicAuthCredentials(null, "foo"), "Invalid Authentication credentials");
+  }
+
+  @Test
+  public void testBadSysPropsCredentials() {
+    System.setProperty("basicauth", "foo");
+    expectThrowsAndMessage(IllegalStateException.class, () -> new Http2SolrClient.Builder().build(), "Invalid Authentication credentials");
+    System.setProperty("basicauth", "foo:");
+    expectThrowsAndMessage(IllegalStateException.class, () -> new Http2SolrClient.Builder().build(), "Invalid Authentication credentials");
+    System.setProperty("basicauth", ":foo");
+    expectThrowsAndMessage(IllegalStateException.class, () -> new Http2SolrClient.Builder().build(), "Invalid Authentication credentials");
+    System.clearProperty("basicauth");
+  }
+
+  @Test
+  public void testSetCredentialsExplicitly() {
+    try (Http2SolrClient client = new Http2SolrClient.Builder(jetty.getBaseUrl().toString() + "/debug/foo")
+            .withBasicAuthCredentials("foo", "explicit")
+            .build();) {
+      QueryRequest r = new QueryRequest(new SolrQuery("quick brown fox"));
+      try {
+        ignoreException("Error from server");
+        client.request(r);
+      } catch (Exception e) {
+        // expected
+      }
+      unIgnoreException("Error from server");
+      assertTrue(DebugServlet.headers.size() > 0);
+      String authorizationHeader = DebugServlet.headers.get("authorization");
+      assertNotNull("Expecting authorization header but got: " + DebugServlet.headers, authorizationHeader);
+      assertEquals("Basic " + Base64.byteArrayToBase64("foo:explicit".getBytes(StandardCharsets.UTF_8)),  authorizationHeader);
+    }
+  }
+
+  @Test
+  public void testSetCredentialsWithSysProps() {
+    System.setProperty("basicauth", "foo:bar");
+    try (Http2SolrClient client = new Http2SolrClient.Builder(jetty.getBaseUrl().toString() + "/debug/foo").build();) {
+      QueryRequest r = new QueryRequest(new SolrQuery("quick brown fox"));
+      try {
+        ignoreException("Error from server");
+        client.request(r);
+      } catch (Exception e) {
+        // expected
+      }
+      unIgnoreException("Error from server");
+      assertTrue(DebugServlet.headers.size() > 0);
+      String authorizationHeader = DebugServlet.headers.get("authorization");
+      assertNotNull("Expecting authorization header but got: " + DebugServlet.headers, authorizationHeader);
+      assertEquals("Basic " + Base64.byteArrayToBase64("foo:bar".getBytes(StandardCharsets.UTF_8)),  authorizationHeader);
+    } finally {
+      System.clearProperty("basicauth");
+    }
+  }
+
+  @Test
+  public void testExplicitCredentialsWinOverSysProps() {
+    System.setProperty("basicauth", "foo:bar");
+    try (Http2SolrClient client = new Http2SolrClient.Builder(jetty.getBaseUrl().toString() + "/debug/foo")
+            .withBasicAuthCredentials("foo1", "explicit").build();) {
+      QueryRequest r = new QueryRequest(new SolrQuery("quick brown fox"));
+      try {
+        ignoreException("Error from server");
+        client.request(r);
+      } catch (Exception e) {
+        // expected
+      }
+      unIgnoreException("Error from server");
+      assertTrue(DebugServlet.headers.size() > 0);
+      String authorizationHeader = DebugServlet.headers.get("authorization");
+      assertNotNull("Expecting authorization header but got: " + DebugServlet.headers, authorizationHeader);
+      assertEquals("Basic " + Base64.byteArrayToBase64("foo1:explicit".getBytes(StandardCharsets.UTF_8)),  authorizationHeader);
+    } finally {
+      System.clearProperty("basicauth");
+    }
+  }
+
+  @Test
+  public void testPerRequestCredentialsWin() {
+    System.setProperty("basicauth", "foo1:sysprop");
+    try (Http2SolrClient client = new Http2SolrClient.Builder(jetty.getBaseUrl().toString() + "/debug/foo")
+            .withBasicAuthCredentials("foo2", "explicit").build();) {
+      QueryRequest r = new QueryRequest(new SolrQuery("quick brown fox"));
+      r.setBasicAuthCredentials("foo3", "per-request");
+      try {
+        ignoreException("Error from server");
+        client.request(r);
+      } catch (Exception e) {
+        // expected
+      }
+      unIgnoreException("Error from server");
+      assertTrue(DebugServlet.headers.size() > 0);
+      String authorizationHeader = DebugServlet.headers.get("authorization");
+      assertNotNull("Expecting authorization header but got: " + DebugServlet.headers, authorizationHeader);
+      assertEquals("Basic " + Base64.byteArrayToBase64("foo3:per-request".getBytes(StandardCharsets.UTF_8)),  authorizationHeader);
+    } finally {
+      System.clearProperty("basicauth");
+    }
+  }
+
+  @Test
+  public void testNoCredentials() {
+    try (Http2SolrClient client = new Http2SolrClient.Builder(jetty.getBaseUrl().toString() + "/debug/foo").build();) {
+      QueryRequest r = new QueryRequest(new SolrQuery("quick brown fox"));
+      try {
+        ignoreException("Error from server");
+        client.request(r);
+      } catch (Exception e) {
+        // expected
+      }
+      unIgnoreException("Error from server");
+      assertFalse("Expecting no authorization header but got: " + DebugServlet.headers, DebugServlet.headers.containsKey("authorization"));
+    }
   }
 
   /**

@@ -137,6 +137,8 @@ public class Http2SolrClient extends SolrClient {
   private ExecutorService executor;
   private boolean shutdownExecutor;
 
+  private final String basicAuthAuthorizationStr;
+
   protected Http2SolrClient(String serverBaseUrl, Builder builder) {
     if (serverBaseUrl != null)  {
       if (!serverBaseUrl.equals("/") && serverBaseUrl.endsWith("/")) {
@@ -157,6 +159,11 @@ public class Http2SolrClient extends SolrClient {
       closeClient = true;
     } else {
       httpClient = builder.http2SolrClient.httpClient;
+    }
+    if (builder.basicAuthUser != null && builder.basicAuthPassword != null) {
+      basicAuthAuthorizationStr = basicAuthCredentialsToAuthorizationString(builder.basicAuthUser, builder.basicAuthPassword);
+    } else {
+      basicAuthAuthorizationStr = null;
     }
     assert ObjectReleaseTracker.track(this);
   }
@@ -470,10 +477,16 @@ public class Http2SolrClient extends SolrClient {
 
   private void setBasicAuthHeader(@SuppressWarnings({"rawtypes"})SolrRequest solrRequest, Request req) {
     if (solrRequest.getBasicAuthUser() != null && solrRequest.getBasicAuthPassword() != null) {
-      String userPass = solrRequest.getBasicAuthUser() + ":" + solrRequest.getBasicAuthPassword();
-      String encoded = Base64.byteArrayToBase64(userPass.getBytes(FALLBACK_CHARSET));
-      req.header("Authorization", "Basic " + encoded);
+      String encoded = basicAuthCredentialsToAuthorizationString(solrRequest.getBasicAuthUser(), solrRequest.getBasicAuthPassword());
+      req.header("Authorization", encoded);
+    } else if (basicAuthAuthorizationStr != null) {
+      req.header("Authorization", basicAuthAuthorizationStr);
     }
+  }
+
+  private String basicAuthCredentialsToAuthorizationString(String user, String pass) {
+    String userPass = user + ":" + pass;
+    return "Basic " + Base64.byteArrayToBase64(userPass.getBytes(FALLBACK_CHARSET));
   }
 
   private Request makeRequest(@SuppressWarnings({"rawtypes"})SolrRequest solrRequest, String collection)
@@ -841,6 +854,8 @@ public class Http2SolrClient extends SolrClient {
     private Integer idleTimeout;
     private Integer connectionTimeout;
     private Integer maxConnectionsPerHost;
+    private String basicAuthUser;
+    private String basicAuthPassword;
     private boolean useHttp1_1 = Boolean.getBoolean("solr.http1");
     protected String baseSolrUrl;
     private ExecutorService executor;
@@ -854,7 +869,23 @@ public class Http2SolrClient extends SolrClient {
     }
 
     public Http2SolrClient build() {
+      if (basicAuthUser == null) {
+        readBasicAuthCredentialsFromSysProps();
+      }
       return new Http2SolrClient(baseSolrUrl, this);
+    }
+
+    private void readBasicAuthCredentialsFromSysProps() {
+      String basicAuthenticationCredentials = System.getProperty("basicauth");
+      if (basicAuthenticationCredentials == null) {
+        return;
+      }
+      int separatorIdx = basicAuthenticationCredentials.indexOf(":");
+      if (separatorIdx < 1 || separatorIdx == basicAuthenticationCredentials.length() - 1) {
+        throw new IllegalStateException("Invalid Authentication credentials. Must have the format: USER:PASSWORD");
+      }
+      this.basicAuthUser = basicAuthenticationCredentials.substring(0, basicAuthenticationCredentials.indexOf(':'));
+      this.basicAuthPassword = basicAuthenticationCredentials.substring(basicAuthenticationCredentials.indexOf(':') + 1);
     }
 
     /**
@@ -872,6 +903,17 @@ public class Http2SolrClient extends SolrClient {
 
     public Builder withSSLConfig(SSLConfig sslConfig) {
       this.sslConfig = sslConfig;
+      return this;
+    }
+
+    public Builder withBasicAuthCredentials(String user, String pass) {
+      if (user != null || pass != null) {
+        if (user == null || pass == null) {
+          throw new IllegalStateException("Invalid Authentication credentials. Either both or none must be provided");
+        }
+      }
+      this.basicAuthUser = user;
+      this.basicAuthPassword = pass;
       return this;
     }
 
